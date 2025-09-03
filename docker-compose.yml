@@ -241,34 +241,6 @@ services:
     networks:
       - kafka-connect-network
 
-  # --- MIRRORMAKER UTILITY SERVICES ---
-  topic-creation:
-    image: confluentinc/cp-kafka:7.4.4
-    container_name: mirror-topic-creator
-    command: >
-      bash -c "
-      cub kafka-ready -z zookeeper-source:2181 1 30 &&
-      kafka-topics --bootstrap-server kafka-source:9092 --create --if-not-exists --topic topic-to-mirror --partitions 1 --replication-factor 1 &&
-      kafka-topics --bootstrap-server kafka-source:9092 --create --topic products --partitions 3 --replication-factor 1
-      "
-    depends_on:
-      - zookeeper-source
-    networks:
-      - kafka-connect-network
-
-  dummy-generation:
-    image: confluentinc/cp-kafka:7.4.4
-    container_name: mirror-data-generator
-    command: >
-      bash -c "cub kafka-ready -z zookeeper-source:2181 1 30 &&
-      sleep 10 &&
-      seq 10000 | kafka-console-producer --broker-list kafka-source:9092 --topic 'products|topic-to-mirror'"
-    depends_on:
-      - zookeeper-source
-      - kafka-source
-    networks:
-      - kafka-connect-network
-
   # --- MIRRORMAKER SERVICE ---
   mirror-maker:
     image: confluentinc/cp-kafka:7.4.4
@@ -276,19 +248,14 @@ services:
     volumes:
       - ./mirror-consumer.properties:/etc/kafka/mirror-consumer.properties
       - ./mirror-producer.properties:/etc/kafka/mirror-producer.properties
-      - ./console-log4j.properties:/etc/kafka/console-log4j.properties
-    environment:
-      - LOG_DIR=/tmp/logs
-      - KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:/etc/kafka/console-log4j.properties
     command: >
       bash -c "cub kafka-ready -z zookeeper-source:2181 1 30 &&
       cub kafka-ready -z zookeeper-destination:2181 1 30 &&
       sleep 15 &&
-      kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products|topic-to-mirror' --num.streams 1"
+      kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products' --num.streams 1"
     depends_on:
       - kafka-source
       - kafka-destination
-      - zookeeper-destination
     networks:
       - kafka-connect-network
 
