@@ -4,13 +4,11 @@ x-kafka-common-env: &kafka-common-env
   KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
   KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
   KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-
   # SSL settings
   KAFKA_SSL_KEYSTORE_TYPE: JKS
   KAFKA_SSL_TRUSTSTORE_TYPE: JKS
   KAFKA_SSL_TRUSTSTORE_PASSWORD: your-password
   KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: "HTTPS"
-
   # SASL settings
   KAFKA_ZOOKEEPER_SASL_CLIENT: 'true'
   KAFKA_ZOOKEEPER_SET_ACL: 'true'
@@ -24,6 +22,7 @@ x-kafka-common-env: &kafka-common-env
   KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_SSL:SASL_SSL,OUTBOUND:SASL_SSL
 
 services:
+  # Основной кластер
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.4
     container_name: zookeeper
@@ -118,6 +117,48 @@ services:
       KAFKA_SSL_KEY_CREDENTIALS: kafka-2_sslkey_creds
     networks:
       - kafka-connect-network
+
+  # --- SCHEMA REGISTRY ---
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.4.4
+    container_name: schema-registry
+    hostname: schema-registry
+    depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+    ports:
+      - "18081:8081"
+    volumes:
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
+      - ./schema-registry.jaas.conf:/etc/schema-registry/secrets/schema-registry.jaas.conf:ro
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+
+      # Подключение к Kafka
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_SSL
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+
+      # SSL настройки
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_PASSWORD: your-password
+
+       # Вместо файла используем прямую конфигурацию
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
+
+      # Дополнительные настройки
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_DEBUG: 'true'
+
+      # Увеличим таймауты для подключения
+      SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT: 30000
+      SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT: 30000
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
+  # --- КОНЕЦ SCHEMA REGISTRY ---
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -135,14 +176,136 @@ services:
       KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
       KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD: your-password
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+      # Добавляем конфигурацию для Schema Registry в Kafka-UI
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
     volumes:
       - ./kafka-0-creds:/etc/kafka/secrets
     depends_on:
       - kafka-0
       - kafka-1
       - kafka-2
+      - schema-registry
     networks:
       - kafka-connect-network
+
+  # --- MIRRORMAKER SOURCE CLUSTER ---
+  zookeeper-source:
+    image: confluentinc/cp-zookeeper:7.4.4
+    container_name: zookeeper-source
+    hostname: zookeeper-source
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-connect-network
+
+  kafka-source:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-source
+    hostname: kafka-source
+    depends_on:
+      - zookeeper-source
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-source:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-source:9092
+    networks:
+      - kafka-connect-network
+
+    # --- MIRRORMAKER DESTINATION CLUSTER ---
+  zookeeper-destination:
+    image: confluentinc/cp-zookeeper:7.4.4
+    container_name: zookeeper-destination
+    hostname: zookeeper-destination
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-connect-network
+
+  kafka-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-destination
+    hostname: kafka-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-destination:9092
+    networks:
+      - kafka-connect-network
+
+  # --- MIRRORMAKER UTILITY SERVICES ---
+  topic-creation:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: mirror-topic-creator
+    command: >
+      bash -c "
+      cub kafka-ready -z zookeeper-source:2181 1 30 &&
+      kafka-topics --bootstrap-server kafka-source:9092 --create --if-not-exists --topic topic-to-mirror --partitions 1 --replication-factor 1 &&
+      kafka-topics --bootstrap-server kafka-source:9092 --create --topic products --partitions 3 --replication-factor 1
+      "
+    depends_on:
+      - zookeeper-source
+    networks:
+      - kafka-connect-network
+
+  dummy-generation:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: mirror-data-generator
+    command: >
+      bash -c "cub kafka-ready -z zookeeper-source:2181 1 30 &&
+      sleep 10 &&
+      seq 10000 | kafka-console-producer --broker-list kafka-source:9092 --topic 'products|topic-to-mirror'"
+    depends_on:
+      - zookeeper-source
+      - kafka-source
+    networks:
+      - kafka-connect-network
+
+  # --- MIRRORMAKER SERVICE ---
+  mirror-maker:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: mirror-maker
+    volumes:
+      - ./mirror-consumer.properties:/etc/kafka/mirror-consumer.properties
+      - ./mirror-producer.properties:/etc/kafka/mirror-producer.properties
+      - ./console-log4j.properties:/etc/kafka/console-log4j.properties
+    environment:
+      - LOG_DIR=/tmp/logs
+      - KAFKA_LOG4J_OPTS=-Dlog4j.configuration=file:/etc/kafka/console-log4j.properties
+    command: >
+      bash -c "cub kafka-ready -z zookeeper-source:2181 1 30 &&
+      cub kafka-ready -z zookeeper-destination:2181 1 30 &&
+      sleep 15 &&
+      kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products|topic-to-mirror' --num.streams 1"
+    depends_on:
+      - kafka-source
+      - kafka-destination
+      - zookeeper-destination
+    networks:
+      - kafka-connect-network
+
+  kafka-ui-destination:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui-destination
+    ports:
+      - "8082:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: destination-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-destination:9092
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+    networks:
+      - kafka-connect-network
+    depends_on:
+      - kafka-destination
+
 networks:
   kafka-connect-network:
     name: kafka-connect-network
