@@ -764,3 +764,103 @@ catch {
 Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
 }
 ```
+
+
+от команды PowerShell для перезапуска destination-кластера:
+
+1. Остановка только destination-сервисов:
+   powershell
+# Остановка отдельных сервисов
+docker-compose stop mirror-maker
+docker-compose stop kafka-ui-destination
+docker-compose stop kafka-0-destination
+docker-compose stop kafka-1-destination
+docker-compose stop kafka-2-destination
+docker-compose stop zookeeper-destination
+
+# Или остановка всех destination-сервисов одной командой
+docker-compose stop mirror-maker kafka-ui-destination kafka-0-destination kafka-1-destination kafka-2-destination zookeeper-destination
+2. Удаление контейнеров (опционально, для полного сброса):
+   powershell
+# Удаление контейнеров
+docker-compose rm -f mirror-maker
+docker-compose rm -f kafka-ui-destination
+docker-compose rm -f kafka-0-destination
+docker-compose rm -f kafka-1-destination
+docker-compose rm -f kafka-2-destination
+docker-compose rm -f zookeeper-destination
+
+# Или удаление всех destination-контейнеров
+docker-compose rm -f mirror-maker kafka-ui-destination kafka-0-destination kafka-1-destination kafka-2-destination zookeeper-destination
+3. Запуск только destination-сервисов:
+   powershell
+# Запуск отдельных сервисов
+docker-compose up -d zookeeper-destination
+docker-compose up -d kafka-0-destination
+docker-compose up -d kafka-1-destination
+docker-compose up -d kafka-2-destination
+docker-compose up -d kafka-ui-destination
+docker-compose up -d mirror-maker
+
+# Или запуск всех destination-сервисов
+docker-compose up -d zookeeper-destination kafka-0-destination kafka-1-destination kafka-2-destination kafka-ui-destination mirror-maker
+4. Команды для быстрого перезапуска:
+   powershell
+# Быстрый перезапуск (остановка + запуск)
+docker-compose restart zookeeper-destination
+docker-compose restart kafka-0-destination
+docker-compose restart kafka-1-destination
+docker-compose restart kafka-2-destination
+docker-compose restart kafka-ui-destination
+docker-compose restart mirror-maker
+
+# Или перезапуск всех destination-сервисов
+docker-compose restart zookeeper-destination kafka-0-destination kafka-1-destination kafka-2-destination kafka-ui-destination mirror-maker
+5. Просмотр логов для проверки:
+   powershell
+# Просмотр логов отдельных сервисов
+docker-compose logs -f kafka-0-destination
+docker-compose logs -f zookeeper-destination
+docker-compose logs -f mirror-maker
+
+# Просмотр логов всех destination-сервисов
+docker-compose logs -f zookeeper-destination kafka-0-destination kafka-1-destination kafka-2-destination mirror-maker
+6. Проверка статуса:
+   powershell
+# Проверка статуса контейнеров
+docker-compose ps | Select-String "destination"
+
+# Или
+docker ps --filter "name=destination"
+7. Полный сброс и перезапуск:
+   powershell
+# Полная пересборка destination-сервисов
+docker-compose up -d --force-recreate --build zookeeper-destination kafka-0-destination kafka-1-destination kafka-2-destination kafka-ui-destination mirror-maker
+
+Команды для перезапуска и диагностики:
+powershell
+# Остановить и удалить mirror-maker
+docker-compose stop mirror-maker
+docker-compose rm -f mirror-maker
+
+# Проверить доступность исходного кластера
+docker exec kafka-0 kafka-topics --list --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties
+
+# Проверить доступность целевого кластера
+docker exec kafka-0-destination kafka-topics --list --bootstrap-server localhost:9092
+
+# Запустить только mirror-maker
+docker-compose up -d mirror-maker
+
+# Смотреть логи в реальном времени
+docker-compose logs -f mirror-maker
+
+Команды для перезапуска:
+powershell
+# Остановить и пересоздать mirror-maker
+docker-compose stop mirror-maker
+docker-compose rm -f mirror-maker
+docker-compose up -d mirror-maker
+
+# Проверить логи
+docker-compose logs -f mirror-maker

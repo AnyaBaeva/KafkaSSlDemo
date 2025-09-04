@@ -189,32 +189,6 @@ services:
     networks:
       - kafka-connect-network
 
-  # --- MIRRORMAKER SOURCE CLUSTER ---
-  zookeeper-source:
-    image: confluentinc/cp-zookeeper:7.4.4
-    container_name: zookeeper-source
-    hostname: zookeeper-source
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - kafka-connect-network
-
-  kafka-source:
-    image: confluentinc/cp-kafka:7.4.4
-    container_name: kafka-source
-    hostname: kafka-source
-    depends_on:
-      - zookeeper-source
-    environment:
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-source:2181'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_BROKER_ID: 1
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-source:9092
-    networks:
-      - kafka-connect-network
-
     # --- MIRRORMAKER DESTINATION CLUSTER ---
   zookeeper-destination:
     image: confluentinc/cp-zookeeper:7.4.4
@@ -226,10 +200,10 @@ services:
     networks:
       - kafka-connect-network
 
-  kafka-destination:
+  kafka-0-destination:
     image: confluentinc/cp-kafka:7.4.4
-    container_name: kafka-destination
-    hostname: kafka-destination
+    container_name: kafka-0-destination
+    hostname: kafka-0-destination
     depends_on:
       - zookeeper-destination
     environment:
@@ -237,9 +211,67 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_BROKER_ID: 1
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-destination:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9092
     networks:
       - kafka-connect-network
+
+  kafka-1-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-1-destination
+    hostname: kafka-1-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1-destination:9092
+    networks:
+      - kafka-connect-network
+
+  kafka-2-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-2-destination
+    hostname: kafka-2-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2-destination:9092
+    networks:
+      - kafka-connect-network
+
+  schema-registry-destination:
+    image: confluentinc/cp-schema-registry:7.4.4
+    container_name: schema-registry-destination
+    hostname: schema-registry-destination
+    depends_on:
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+    ports:
+      - "18082:8081"  # Используйте другой порт, чтобы избежать конфликта с основным Schema Registry
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-destination
+      # Подключение к целевому кластеру Kafka
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT  # Целевой кластер использует PLAINTEXT
+      # Дополнительные настройки
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_DEBUG: 'true'
+      SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT: 30000
+      SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT: 30000
+      # Уникальный group.id для изоляции кластеров :cite[1]:cite[3]
+      SCHEMA_REGISTRY_KAFKASTORE_GROUP_ID: schema-registry-destination-group
+      # Уникальное имя темы для хранения схем :cite[1]
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_destination
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
 
   # --- MIRRORMAKER SERVICE ---
   mirror-maker:
@@ -248,14 +280,19 @@ services:
     volumes:
       - ./mirror-consumer.properties:/etc/kafka/mirror-consumer.properties
       - ./mirror-producer.properties:/etc/kafka/mirror-producer.properties
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
     command: >
-      bash -c "cub kafka-ready -z zookeeper-source:2181 1 30 &&
-      cub kafka-ready -z zookeeper-destination:2181 1 30 &&
-      sleep 15 &&
-      kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products' --num.streams 1"
+      bash -c "
+          echo 'Starting MirrorMaker...' &&
+          kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products' --num.streams 3
+        "
     depends_on:
-      - kafka-source
-      - kafka-destination
+      - kafka-0
+      - kafka-1
+      - kafka-2
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
     networks:
       - kafka-connect-network
 
@@ -266,12 +303,17 @@ services:
       - "8082:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: destination-kafka
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-destination:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-0-destination:9092,kafka-1-destination:9092,kafka-2-destination:9092
       KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+      # Добавьте конфигурацию для целевого Schema Registry
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry-destination:8081
     networks:
       - kafka-connect-network
     depends_on:
-      - kafka-destination
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+      - schema-registry-destination  # Добавлена зависимость
 
 networks:
   kafka-connect-network:

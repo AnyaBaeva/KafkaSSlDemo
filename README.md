@@ -25,6 +25,7 @@
    Вывод:
    products.
 
+## Создайте топики для destination аналогично source 
 
 ## ПРАВА
 ```
@@ -79,7 +80,7 @@ docker exec -it kafka-0 kafka-acls `
    --add --allow-principal User:consumer `
    --operation ALL --topic products
 ```
-## Создайте СХЕМУ 
+## Создайте СХЕМУ для основных кластеров
 
 ```
 $schemaRegistryUrl = "http://localhost:18081"
@@ -181,6 +182,110 @@ catch {
 Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
 }
 ```
+
+## Создайте СХЕМУ для реплики
+
+```
+$schemaRegistryUrl = "http://localhost:18082"
+$subject = "products-value"
+
+$schema = @'
+{
+"type": "record",
+"name": "Product",
+"namespace": "com.example.avro",
+"fields": [
+{"name": "product_id", "type": "string"},
+{"name": "name", "type": "string"},
+{"name": "description", "type": "string"},
+{
+"name": "price",
+"type": {
+"type": "record",
+"name": "Price",
+"fields": [
+{"name": "amount", "type": "double"},
+{"name": "currency", "type": "string"}
+]
+}
+},
+{"name": "category", "type": "string"},
+{"name": "brand", "type": "string"},
+{
+"name": "stock",
+"type": {
+"type": "record",
+"name": "Stock",
+"fields": [
+{"name": "available", "type": "int"},
+{"name": "reserved", "type": "int"}
+]
+}
+},
+{"name": "sku", "type": "string"},
+{
+"name": "tags",
+"type": {
+"type": "array",
+"items": "string"
+}
+},
+{
+"name": "images",
+"type": {
+"type": "array",
+"items": {
+"type": "record",
+"name": "Image",
+"fields": [
+{"name": "url", "type": "string"},
+{"name": "alt", "type": "string"}
+]
+}
+}
+},
+{
+"name": "specifications",
+"type": {
+"type": "record",
+"name": "Specifications",
+"fields": [
+{"name": "weight", "type": "string"},
+{"name": "dimensions", "type": "string"},
+{"name": "battery_life", "type": "string"},
+{"name": "water_resistance", "type": "string"}
+]
+}
+},
+{"name": "created_at", "type": "string"},
+{"name": "updated_at", "type": "string"},
+{"name": "index", "type": "string"},
+{"name": "store_id", "type": "string"}
+]
+}
+'@
+
+$schemaData = @{
+schema = $schema
+} | ConvertTo-Json
+
+$headers = @{
+"Content-Type" = "application/vnd.schemaregistry.v1+json"
+}
+
+try {
+$response = Invoke-RestMethod `
+-Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+-Method Post `
+-Body $schemaData `
+-Headers $headers
+Write-Output "Схема зарегистрирована. ID: $response"
+}
+catch {
+Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+}
+```
+
 
 ## Зеркалирование
 
