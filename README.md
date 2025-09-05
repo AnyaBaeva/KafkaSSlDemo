@@ -10,10 +10,16 @@
    
    Должны увидеть пустой вывод.
    
-   b. Создаем топик:
+   b.1 Создаем топик:
    
    ```powershell
    docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
+   ```
+   Вывод: Created topic products.
+
+   b.2 Создаем топик в destination (команда не рабочая): если руками, то 3 партиции и одна реплика
+```powershell
+   docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 1 
    ```
    Вывод: Created topic products.
    
