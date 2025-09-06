@@ -313,3 +313,16 @@ docker logs kafka-destination
 # Проверьте MirrorMaker
 docker logs mirror-maker
 ```
+
+📊 Мониторинг:
+Spark UI: http://localhost:8081
+
+HDFS UI: http://localhost:9870
+
+Проверка данных: hdfs dfs -ls /test_data
+
+# HDFS - > Spark - > HDFS
+запустите класс HDFSProcessing
+
+# HDFS - > Kafka-destination
+запустите класс HDFSToKafka

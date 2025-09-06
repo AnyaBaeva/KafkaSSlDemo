@@ -455,7 +455,76 @@ services:
     networks:
       - kafka-connect-network
     restart: unless-stopped
+  # --- SPARK CLUSTER ---
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "8081:8080"  # Spark Web UI
+      - "7077:7077"  # Spark Master port
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./spark-apps:/opt/spark-apps
+    depends_on:
+      - hadoop-namenode
+      - hadoop-datanode-1
+      - hadoop-datanode-2
+      - hadoop-datanode-3
+    networks:
+      - kafka-connect-network
 
+  spark-worker-1:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    depends_on:
+      - spark-master
+      - hadoop-namenode
+    networks:
+      - kafka-connect-network
+
+  spark-worker-2:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-2
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYMPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    depends_on:
+      - spark-master
+      - hadoop-namenode
+    networks:
+      - kafka-connect-network
 networks:
   kafka-connect-network:
     name: kafka-connect-network
