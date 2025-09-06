@@ -326,3 +326,62 @@ HDFS UI: http://localhost:9870
 
 # HDFS - > Kafka-destination
 запустите класс HDFSToKafka
+
+
+#SPARK ВРЕМЕННО ЗАКОММЕНТИРОВАН, НЕТ МЕСТА, КОНФИГУРАЦИЯ ВЕРНАЯ, НА КОД НЕДОСТАТОЧНО РАЗРЕШЕНИЙ
+
+
+```
+curl -X POST -H "Content-Type: application/json" --data @- http://localhost:8083/connectors << EOF
+{
+"name": "postgres-source-connector",
+"config": {
+"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+"database.hostname": "postgres",
+"database.port": "5432",
+"database.user": "postgres-user",
+"database.password": "postgres-pw",
+"database.dbname": "customers",
+"database.server.name": "postgres-server",
+"plugin.name": "pgoutput",
+"slot.name": "debezium",
+"publication.name": "dbz_publication",
+"table.include.list": "public.(.*)",
+"tombstones.on.delete": "true",
+"transforms": "unwrap",
+"transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+"transforms.unwrap.drop.tombstones": "false",
+"transforms.unwrap.delete.handling.mode": "rewrite",
+"key.converter": "io.confluent.connect.avro.AvroConverter",
+"value.converter": "io.confluent.connect.avro.AvroConverter",
+"key.converter.schema.registry.url": "http://schema-registry:8081",
+"value.converter.schema.registry.url": "http://schema-registry:8081"
+}
+}
+EOF
+```
+
+```
+curl -X POST -H "Content-Type: application/json" --data @- http://localhost:8083/connectors << EOF
+{
+  "name": "postgres-sink-connector",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "your-target-topic",
+    "connection.url": "jdbc:postgresql://postgres:5432/customers",
+    "connection.user": "postgres-user",
+    "connection.password": "postgres-pw",
+    "insert.mode": "upsert",
+    "pk.mode": "record_key",
+    "pk.fields": "id",
+    "auto.create": "true",
+    "auto.evolve": "true",
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+    "value.converter.schema.registry.url": "http://schema-registry:8081"
+  }
+}
+EOF
+```

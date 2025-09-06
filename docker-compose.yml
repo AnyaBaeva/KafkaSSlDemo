@@ -144,7 +144,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
       SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_PASSWORD: your-password
 
-       # Вместо файла используем прямую конфигурацию
+      # Вместо файла используем прямую конфигурацию
       SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
 
       # Дополнительные настройки
@@ -188,7 +188,58 @@ services:
     networks:
       - kafka-connect-network
 
-  # --- MIRRORMAKER DESTINATION CLUSTER ---
+  # Kafka Connect для работы с файлами (основной кластер)
+  kafka-connect-files:
+    image: confluentinc/cp-kafka-connect:7.4.4
+    container_name: kafka-connect-files
+    hostname: kafka-connect-files
+    depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+    ports:
+      - "18083:8083"
+    environment:
+      # Подключение к основному кластеру Kafka
+      CONNECT_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
+      CONNECT_GROUP_ID: kafka-connect-files-cluster
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs-files
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets-files
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status-files
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 3
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 3
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 3
+
+      # Безопасность основного кластера
+      CONNECT_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_SASL_MECHANISM: PLAIN
+      CONNECT_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
+      CONNECT_SSL_TRUSTSTORE_PASSWORD: your-password
+      CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
+
+      # Конвертеры для текстовых файлов
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      # Настройки REST API
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect-files
+      CONNECT_REST_PORT: 8083
+
+      # Путь к плагинам
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+    volumes:
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
+      # Директория для файлов
+      - ./file-data:/home/appuser/data
+      # Монтирование файловых коннекторов
+      - ./confluent-hub-components:/usr/share/confluent-hub-components
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
+
+  # --- MIRRORMAKER DESTINATION CLUSTER --- (без безопасности, для HDFS)
   zookeeper-destination:
     image: confluentinc/cp-zookeeper:7.4.4
     container_name: zookeeper-destination
@@ -452,79 +503,81 @@ services:
     volumes:
       - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
       - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
+      # Монтирование HDFS connector
+      - ./confluent-hub-components:/usr/share/confluent-hub-components
     networks:
       - kafka-connect-network
     restart: unless-stopped
-  # --- SPARK CLUSTER ---
-  spark-master:
-    image: bitnami/spark:3.5.0
-    container_name: spark-master
-    hostname: spark-master
-    ports:
-      - "8081:8080"  # Spark Web UI
-      - "7077:7077"  # Spark Master port
-    environment:
-      - SPARK_MODE=master
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
-      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-      - ./spark-apps:/opt/spark-apps
-    depends_on:
-      - hadoop-namenode
-      - hadoop-datanode-1
-      - hadoop-datanode-2
-      - hadoop-datanode-3
-    networks:
-      - kafka-connect-network
-
-  spark-worker-1:
-    image: bitnami/spark:3.5.0
-    container_name: spark-worker-1
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
-      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-    depends_on:
-      - spark-master
-      - hadoop-namenode
-    networks:
-      - kafka-connect-network
-
-  spark-worker-2:
-    image: bitnami/spark:3.5.0
-    container_name: spark-worker-2
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYMPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
-      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
-    depends_on:
-      - spark-master
-      - hadoop-namenode
-    networks:
-      - kafka-connect-network
+#  # --- SPARK CLUSTER --- временно закомментировано
+#  spark-master:
+#    image: bitnami/spark:3.5.0
+#    container_name: spark-master
+#    hostname: spark-master
+#    ports:
+#      - "8081:8080"  # Spark Web UI
+#      - "7077:7077"  # Spark Master port
+#    environment:
+#      - SPARK_MODE=master
+#      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+#      - SPARK_RPC_ENCRYPTION_ENABLED=no
+#      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+#      - SPARK_SSL_ENABLED=no
+#    volumes:
+#      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+#      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+#      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+#      - ./spark-apps:/opt/spark-apps
+#    depends_on:
+#      - hadoop-namenode
+#      - hadoop-datanode-1
+#      - hadoop-datanode-2
+#      - hadoop-datanode-3
+#    networks:
+#      - kafka-connect-network
+#
+#  spark-worker-1:
+#    image: bitnami/spark:3.5.0
+#    container_name: spark-worker-1
+#    environment:
+#      - SPARK_MODE=worker
+#      - SPARK_MASTER_URL=spark://spark-master:7077
+#      - SPARK_WORKER_MEMORY=1G
+#      - SPARK_WORKER_CORES=1
+#      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+#      - SPARK_RPC_ENCRYPTION_ENABLED=no
+#      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+#      - SPARK_SSL_ENABLED=no
+#    volumes:
+#      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+#      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+#      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+#    depends_on:
+#      - spark-master
+#      - hadoop-namenode
+#    networks:
+#      - kafka-connect-network
+#
+#  spark-worker-2:
+#    image: bitnami/spark:3.5.0
+#    container_name: spark-worker-2
+#    environment:
+#      - SPARK_MODE=worker
+#      - SPARK_MASTER_URL=spark://spark-master:7077
+#      - SPARK_WORKER_MEMORY=1G
+#      - SPARK_WORKER_CORES=1
+#      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+#      - SPARK_RPC_ENCRYMPTION_ENABLED=no
+#      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+#      - SPARK_SSL_ENABLED=no
+#    volumes:
+#      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+#      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+#      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+#    depends_on:
+#      - spark-master
+#      - hadoop-namenode
+#    networks:
+#      - kafka-connect-network
 networks:
   kafka-connect-network:
     name: kafka-connect-network
