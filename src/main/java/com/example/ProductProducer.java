@@ -48,6 +48,10 @@ public class ProductProducer {
   }
 
   public static void main(String[] args) {
+    sendData();
+  }
+
+  public static void sendData() {
     try (KafkaProducer<String, GenericRecord> producer = new KafkaProducer<>(getProducerConfig())) {
       Schema schema = new Schema.Parser().parse(SCHEMA_STRING);
 
@@ -120,7 +124,7 @@ public class ProductProducer {
 
         // Отправка сообщения в Kafka
         ProducerRecord<String, GenericRecord> record =
-            new ProducerRecord<>("products", productJson.getString("product_id"), productRecord);
+                new ProducerRecord<>("products", productJson.getString("product_id"), productRecord);
 
         producer.send(record, (metadata, exception) -> {
           if (exception == null) {

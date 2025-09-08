@@ -1,4 +1,9 @@
-# Итоговый проект
+# Итоговый проект 
+ ```powershell
+& "C:\projects\KafkaSSlDemo\deploy.ps1"
+ ```
+или
+
 ## Создайте топики
 
    a. После запуска контейнера проверяем, что топики еще не созданы (локальный 
@@ -10,16 +15,11 @@
    
    Должны увидеть пустой вывод.
    
-   b.1 Создаем топик:
+   b.1 Создаем топики:
    
    ```powershell
    docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
-   ```
-   Вывод: Created topic products.
-
-   b.2 Создаем топик в destination (команда не рабочая): если руками, то 3 партиции и одна реплика
-```powershell
-   docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 1 
+   docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic products --partitions 3 --replication-factor 1 
    ```
    Вывод: Created topic products.
    
@@ -314,10 +314,97 @@ docker logs kafka-destination
 docker logs mirror-maker
 ```
 
-📊 Мониторинг:
-Spark UI: http://localhost:8081
+# Подготовка коннектора
+``` powershell
+# Зарегистрируйте HDFS Sink Connector
+# Способ 1 - используем Invoke-RestMethod (рекомендуется)
+# $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors" -Method Post -Headers @{"Content-Type" = "application/json"} -Body (Get-Content -Raw -Path "hdfs-sink-config.json")
+# Write-Host "Коннектор создан: $($response | ConvertTo-Json)"
 
-HDFS UI: http://localhost:9870
+# Создадим новый коннектор с правильными настройками
+# Создадим новый коннектор с правильными настройками
+$connectorConfig = @{
+    "name" = "hdfs-sink-avro-connector"
+    "config" = @{
+        "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
+        "tasks.max" = "1"
+        "topics" = "products"
+        "hdfs.url" = "hdfs://hadoop-namenode:9000"
+        "hadoop.conf.dir" = "/etc/hadoop/conf"
+        "hadoop.home" = "/opt/hadoop"
+        "flush.size" = "3"
+        "format.class" = "io.confluent.connect.hdfs.avro.AvroFormat"
+        "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
+        "key.converter.schemas.enable" = "false"
+        "value.converter" = "io.confluent.connect.avro.AvroConverter"
+        "value.converter.schema.registry.url" = "http://schema-registry-destination:8081"
+        "schema.compatibility" = "BACKWARD"
+        "errors.tolerance" = "all"
+        "errors.log.enable" = "true"
+        "errors.log.include.messages" = "true"
+        "hdfs.authentication.kerberos" = "false"
+        "topics.dir" = "/data"
+        "logs.dir" = "/logs"
+    }
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
+
+
+# Создадим директории с правильными правами
+docker exec hadoop-namenode hdfs dfs -mkdir -p /data
+docker exec hadoop-namenode hdfs dfs -mkdir -p /logs
+docker exec hadoop-namenode hdfs dfs -chmod -R 777 /data /logs
+
+# Проверим
+docker exec hadoop-namenode hdfs dfs -ls -R /
+
+# перезапуск
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-string-connector/restart" -Method Post -ContentType "application/json"
+
+# Проверим статус
+Start-Sleep -Seconds 10
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-string-connector/status" -Method Get
+
+# изменение при необходимости
+$connectorConfig = @{
+    "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
+    "tasks.max" = "1"
+    "topics" = "products"
+    "hdfs.url" = "hdfs://hadoop-namenode:9000"
+    "hadoop.conf.dir" = "/etc/hadoop/conf"
+    "hadoop.home" = "/opt/hadoop"
+    "flush.size" = "100"
+    "format.class" = "io.confluent.connect.hdfs.avro.AvroFormat"
+    
+    # ИЗМЕНИТЬ: ключи как строки, значения как Avro
+    "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
+    "key.converter.schemas.enable" = "false"
+    "value.converter" = "io.confluent.connect.avro.AvroConverter"
+    "value.converter.schema.registry.url" = "http://schema-registry-destination:8081"
+    
+    "schema.compatibility" = "BACKWARD"
+    "errors.tolerance" = "all"
+    "errors.log.enable" = "true"
+    "errors.log.include.messages" = "true"
+}
+
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-avro-connector/config" -Method Put -ContentType "application/json" -Body ($connectorConfig | ConvertTo-Json -Depth 10)
+
+# Проверим статус
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-avro-connector/status" -Method Get
+
+# Проверим данные в HDFS через несколько минут
+docker exec hadoop-namenode hdfs dfs -ls -R / | findstr topics
+
+# Проверим логи на успешную запись
+docker logs kafka-connect | Select-String -Pattern "committed|flush|HDFS" | Select-Object -Last 10
+```
+
+📊 Мониторинг:
+Spark UI: [http://localhost:8081](URL)
+
+HDFS UI: [http://localhost:9870](URL)
 
 Проверка данных: hdfs dfs -ls /test_data
 
