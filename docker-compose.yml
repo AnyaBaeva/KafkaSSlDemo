@@ -1,16 +1,12 @@
-version: '3.8'
-
 x-kafka-common-env: &kafka-common-env
   KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
   KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
   KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-
   # SSL settings
   KAFKA_SSL_KEYSTORE_TYPE: JKS
   KAFKA_SSL_TRUSTSTORE_TYPE: JKS
   KAFKA_SSL_TRUSTSTORE_PASSWORD: your-password
   KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: "HTTPS"
-
   # SASL settings
   KAFKA_ZOOKEEPER_SASL_CLIENT: 'true'
   KAFKA_ZOOKEEPER_SET_ACL: 'true'
@@ -24,6 +20,7 @@ x-kafka-common-env: &kafka-common-env
   KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_SSL:SASL_SSL,OUTBOUND:SASL_SSL
 
 services:
+  # Основной кластер
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.4
     container_name: zookeeper
@@ -118,6 +115,47 @@ services:
       KAFKA_SSL_KEY_CREDENTIALS: kafka-2_sslkey_creds
     networks:
       - kafka-connect-network
+
+  # --- SCHEMA REGISTRY ---
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.4.4
+    container_name: schema-registry
+    hostname: schema-registry
+    depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+    ports:
+      - "18081:8081"
+    volumes:
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
+      - ./schema-registry.jaas.conf:/etc/schema-registry/secrets/schema-registry.jaas.conf:ro
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+
+      # Подключение к Kafka
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_SSL
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+
+      # SSL настройки
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_PASSWORD: your-password
+
+      # Вместо файла используем прямую конфигурацию
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
+
+      # Дополнительные настройки
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_DEBUG: 'true'
+
+      # Увеличим таймауты для подключения
+      SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT: 30000
+      SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT: 30000
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -135,14 +173,451 @@ services:
       KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
       KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD: your-password
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+      # Добавляем конфигурацию для Schema Registry в Kafka-UI
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
     volumes:
       - ./kafka-0-creds:/etc/kafka/secrets
     depends_on:
       - kafka-0
       - kafka-1
       - kafka-2
+      - schema-registry
     networks:
       - kafka-connect-network
+
+  postgres:
+    image: debezium/postgres:16
+    hostname: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres-user
+      POSTGRES_PASSWORD: postgres-pw
+      POSTGRES_DB: shop
+    volumes:
+      - ./postgres/custom-config.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    networks:
+      - kafka-connect-network
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - kafka-connect-network
+
+  # --- MIRRORMAKER DESTINATION CLUSTER --- (без безопасности, для HDFS)
+  zookeeper-destination:
+    image: confluentinc/cp-zookeeper:7.4.4
+    container_name: zookeeper-destination
+    hostname: zookeeper-destination
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-connect-network
+
+  kafka-0-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-0-destination
+    hostname: kafka-0-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9092
+    networks:
+      - kafka-connect-network
+
+  kafka-1-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-1-destination
+    hostname: kafka-1-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1-destination:9092
+    networks:
+      - kafka-connect-network
+
+  kafka-2-destination:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: kafka-2-destination
+    hostname: kafka-2-destination
+    depends_on:
+      - zookeeper-destination
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_BROKER_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2-destination:9092
+    networks:
+      - kafka-connect-network
+
+  schema-registry-destination:
+    image: confluentinc/cp-schema-registry:7.4.4
+    container_name: schema-registry-destination
+    hostname: schema-registry-destination
+    depends_on:
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+    ports:
+      - "18082:8081"  # Используйте другой порт, чтобы избежать конфликта с основным Schema Registry
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-destination
+      # Подключение к целевому кластеру Kafka
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT  # Целевой кластер использует PLAINTEXT
+      # Дополнительные настройки
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_DEBUG: 'true'
+      SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT: 30000
+      SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT: 30000
+      # Уникальный group.id для изоляции кластеров :cite[1]:cite[3]
+      SCHEMA_REGISTRY_KAFKASTORE_GROUP_ID: schema-registry-destination-group
+      # Уникальное имя темы для хранения схем :cite[1]
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas_destination
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
+
+  # --- MIRRORMAKER SERVICE ---
+  mirror-maker:
+    image: confluentinc/cp-kafka:7.4.4
+    container_name: mirror-maker
+    volumes:
+      - ./mirror-consumer.properties:/etc/kafka/mirror-consumer.properties
+      - ./mirror-producer.properties:/etc/kafka/mirror-producer.properties
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
+    command: >
+      bash -c "
+          echo 'Starting MirrorMaker...' &&
+          kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products' --num.streams 3
+        "
+    depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+    networks:
+      - kafka-connect-network
+
+  kafka-ui-destination:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui-destination
+    ports:
+      - "8082:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: destination-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-0-destination:9092,kafka-1-destination:9092,kafka-2-destination:9092
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+      # Добавьте конфигурацию для целевого Schema Registry
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry-destination:8081
+    networks:
+      - kafka-connect-network
+    depends_on:
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+      - schema-registry-destination
+
+  # --- HADOOP CLUSTER ---
+  hadoop-namenode:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-namenode
+    hostname: hadoop-namenode
+    user: "root"
+    restart: always
+    platform: linux/amd64
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    shm_size: 1g
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    volumes:
+      - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./namenode_entrypoint.sh:/namenode_entrypoint.sh
+      - hadoop_namenode_data:/hadoop/dfs/name
+    entrypoint: ["/bin/bash", "/namenode_entrypoint.sh"]
+    command: ["hdfs", "namenode"]
+    networks:
+      - kafka-connect-network
+
+  hadoop-datanode-1:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-1
+    hostname: hadoop-datanode-1
+    user: "root"
+    restart: always
+    platform: linux/amd64
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    shm_size: 1g
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - "9864:9864"
+    volumes:
+      - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
+      - hadoop_namenode_data:/hadoop/dfs/name
+    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
+    command: ["hdfs", "datanode"]
+    networks:
+      - kafka-connect-network
+
+  hadoop-datanode-2:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-2
+    hostname: hadoop-datanode-2
+    user: "root"
+    restart: always
+    platform: linux/amd64
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    shm_size: 1g
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - "9865:9865"
+    volumes:
+      - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
+      - hadoop_namenode_data:/hadoop/dfs/name
+    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
+    command: ["hdfs", "datanode"]
+    networks:
+      - kafka-connect-network
+
+  hadoop-datanode-3:
+    image: apache/hadoop:3.4.1
+    container_name: hadoop-datanode-3
+    hostname: hadoop-datanode-3
+    user: "root"
+    restart: always
+    platform: linux/amd64
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2g"
+    shm_size: 1g
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - "9866:9866"
+    volumes:
+      - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
+      - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
+      - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
+    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
+    command: ["hdfs", "datanode"]
+    networks:
+      - kafka-connect-network
+
+  # --- KAFKA CONNECT с HDFS SINK ---
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:7.4.4
+    build:
+      context: .
+      dockerfile: Dockerfile-kafka-connect
+    container_name: kafka-connect
+    hostname: kafka-connect
+    depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+      - schema-registry
+      - kafka-0-destination
+      - kafka-1-destination
+      - kafka-2-destination
+      - schema-registry-destination
+      - hadoop-namenode
+      - postgres
+    ports:
+      - "18083:8083"
+    environment:
+      # Основные настройки Connect
+      CONNECT_GROUP_ID: kafka-connect-cluster
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 3
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 3
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 3
+
+      # Настройки для ОСНОВНОГО кластера (JDBC Sink)
+      CONNECT_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
+      CONNECT_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_SASL_MECHANISM: PLAIN
+      CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
+      CONNECT_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
+      CONNECT_SSL_TRUSTSTORE_PASSWORD: your-password
+
+      # Конвертеры для основного кластера
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # Настройки для ЦЕЛЕВОГО кластера (HDFS Sink)
+      CONNECT_PRODUCER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      CONNECT_PRODUCER_SECURITY_PROTOCOL: PLAINTEXT
+      CONNECT_PRODUCER_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_PRODUCER_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+      CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+
+      # Общие настройки
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+      CONNECT_HTTP_REQUEST_TIMEOUT_MS: 120000
+      HADOOP_CONF_DIR: /etc/hadoop/conf
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+    volumes:
+      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
+      - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
+      - ./confluent-hub-components:/usr/share/confluent-hub-components
+    networks:
+      - kafka-connect-network
+    restart: unless-stopped
+  # --- SPARK CLUSTER --- временно закомментировано
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "8085:8080"  # Spark Web UI
+      - "7077:7077"  # Spark Master port
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./spark-apps:/opt/spark-apps
+    depends_on:
+      - hadoop-namenode
+      - hadoop-datanode-1
+      - hadoop-datanode-2
+      - hadoop-datanode-3
+    networks:
+      - kafka-connect-network
+
+  spark-worker-1:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    depends_on:
+      - spark-master
+      - hadoop-namenode
+    networks:
+      - kafka-connect-network
+
+  spark-worker-2:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-2
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYMPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
+      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
+      - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    depends_on:
+      - spark-master
+      - hadoop-namenode
+    networks:
+      - kafka-connect-network
+
+  prometheus:
+    image: prom/prometheus:v2.30.3
+    ports:
+      - 9090:9090
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
+    links:
+      - kafka-connect
+    networks:
+      - kafka-connect-network
+
+  grafana:
+    build:
+      context: ./grafana
+    ports:
+      - 3000:3000
+    networks:
+      - kafka-connect-network
+
+volumes:
+  hadoop_namenode_data:
+    driver: local
+  hadoop_datanode_data_1:
+    driver: local
+  hadoop_datanode_data_2:
+    driver: local
+  hadoop_datanode_data_3:
+    driver: local
+  kafka_connect_plugins:
+    driver: local
+
+
 networks:
   kafka-connect-network:
     name: kafka-connect-network

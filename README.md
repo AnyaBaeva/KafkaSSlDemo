@@ -1,453 +1,10 @@
-# Проект модуля №6: "Безопасность в Kafka" (Python)
+# Итоговый проект 
+ ```powershell
+& "C:\projects\KafkaSSlDemo\deploy.ps1"
+ ```
+или
 
-## Задание "Настройка защищённого соединения и управление доступом"
-
-**Цели задания:** настроить защищённое SSL-соединение для кластера Apache 
-Kafka из трёх брокеров с использованием Docker Compose, создать новый топик 
-и протестировать отправку и получение зашифрованных сообщений.
-
-**Задание:**
-1. Создайте сертификаты для каждого брокера. 
-2. Создайте Truststore и Keystore для каждого брокера.
-3. Настройте дополнительные брокеры в режиме SSL. Ранее в курсе вы уже 
-   работали с кластером Kafka, состоящим из трёх брокеров. Используйте
-   имеющийся `docker-compose` кластера и настройте для него SSL. 
-4. Создайте топики:
-   * **topic-1**
-   * **topic-2**
-5. Настройте права доступа:
-   * **topic-1**: доступен как для продюсеров, так и для консьюмеров.
-   * **topic-2**: продюсеры могут отправлять сообщения; консьюмеры не имеют 
-     доступа к чтению данных.
-6. Реализуйте продюсера и консьюмера.
-7. Проверьте права доступа.
-
-## Решение
-
-1. **Создайте сертификаты для каждого брокера.**
-
-   a. Создаем файл конфигурации для корневого сертификата (Root CA) `ca.cnf`:
-   
-   ```
-   [ policy_match ]
-   countryName = match
-   stateOrProvinceName = match
-   organizationName = match
-   organizationalUnitName = optional
-   commonName = supplied
-   emailAddress = optional
-   
-   [ req ]
-   prompt = no
-   distinguished_name = dn
-   default_md = sha256
-   default_bits = 4096
-   x509_extensions = v3_ca
-   
-   [ dn ]
-   countryName = RU
-   organizationName = Yandex
-   organizationalUnitName = Practice
-   localityName = Moscow
-   commonName = yandex-practice-kafka-ca
-   
-   [ v3_ca ]
-   subjectKeyIdentifier = hash
-   basicConstraints = critical,CA:true
-   authorityKeyIdentifier = keyid:always,issuer:always
-   keyUsage = critical,keyCertSign,cRLSign
-   ```
-   
-   b. Создаем корневой сертификат - Root CA (локальный терминал):
-   
-   ```bash
-   openssl req -new -nodes \
-      -x509 \
-      -days 365 \
-      -newkey rsa:2048 \
-      -keyout ca.key \
-      -out ca.crt \
-      -config ca.cnf
-   ```
-   
-   c. Создаем файл для хранения сертификата безопасности `ca.pem` (локальный 
-   терминал):
-   
-   ```bash
-   cat ca.crt ca.key > ca.pem
-   ```
-   
-   d. Создаем файлы конфигурации для каждого брокера:
-   
-      *  Для `kafka-0` создаем файл `kafka-0-creds/kafka-0.cnf`:
-      
-      ```bash
-      [req]
-      prompt = no
-      distinguished_name = dn
-      default_md = sha256
-      default_bits = 4096
-      req_extensions = v3_req
-      
-      [ dn ]
-      countryName = RU
-      organizationName = Yandex
-      organizationalUnitName = Practice
-      localityName = Moscow
-      commonName = kafka-0
-      
-      [ v3_ca ]
-      subjectKeyIdentifier = hash
-      basicConstraints = critical,CA:true
-      authorityKeyIdentifier = keyid:always,issuer:always
-      keyUsage = critical,keyCertSign,cRLSign
-      
-      [ v3_req ]
-      subjectKeyIdentifier = hash
-      basicConstraints = CA:FALSE
-      nsComment = "OpenSSL Generated Certificate"
-      keyUsage = critical, digitalSignature, keyEncipherment
-      extendedKeyUsage = serverAuth, clientAuth
-      subjectAltName = @alt_names
-      
-      [ alt_names ]
-      DNS.1 = kafka-0
-      DNS.2 = kafka-0-external
-      DNS.3 = localhost
-      ```
-      
-      * Для `kafka-1` создаем файл `kafka-1-creds/kafka-1.cnf`:
-      
-      ```bash
-      [req]
-      prompt = no
-      distinguished_name = dn
-      default_md = sha256
-      default_bits = 4096
-      req_extensions = v3_req
-      
-      [ dn ]
-      countryName = RU
-      organizationName = Yandex
-      organizationalUnitName = Practice
-      localityName = Moscow
-      commonName = kafka-1
-      
-      [ v3_ca ]
-      subjectKeyIdentifier = hash
-      basicConstraints = critical,CA:true
-      authorityKeyIdentifier = keyid:always,issuer:always
-      keyUsage = critical,keyCertSign,cRLSign
-      
-      [ v3_req ]
-      subjectKeyIdentifier = hash
-      basicConstraints = CA:FALSE
-      nsComment = "OpenSSL Generated Certificate"
-      keyUsage = critical, digitalSignature, keyEncipherment
-      extendedKeyUsage = serverAuth, clientAuth
-      subjectAltName = @alt_names
-      
-      [ alt_names ]
-      DNS.1 = kafka-1
-      DNS.2 = kafka-1-external
-      DNS.3 = localhost
-      ```
-      
-      * Для `kafka-2` создаем файл `kafka-2-creds/kafka-2.cnf`:
-      
-      ```bash
-      [req]
-      prompt = no
-      distinguished_name = dn
-      default_md = sha256
-      default_bits = 4096
-      req_extensions = v3_req
-      
-      [ dn ]
-      countryName = RU
-      organizationName = Yandex
-      organizationalUnitName = Practice
-      localityName = Moscow
-      commonName = kafka-2
-      
-      [ v3_ca ]
-      subjectKeyIdentifier = hash
-      basicConstraints = critical,CA:true
-      authorityKeyIdentifier = keyid:always,issuer:always
-      keyUsage = critical,keyCertSign,cRLSign
-      
-      [ v3_req ]
-      subjectKeyIdentifier = hash
-      basicConstraints = CA:FALSE
-      nsComment = "OpenSSL Generated Certificate"
-      keyUsage = critical, digitalSignature, keyEncipherment
-      extendedKeyUsage = serverAuth, clientAuth
-      subjectAltName = @alt_names
-      
-      [ alt_names ]
-      DNS.1 = kafka-2
-      DNS.2 = kafka-2-external
-      DNS.3 = localhost
-      ```
-   
-   e. Создаем приватные ключи и запросы на сертификат - CSR (локальный терминал): 
-   
-   ```bash
-   openssl req -new \
-       -newkey rsa:2048 \
-       -keyout kafka-0-creds/kafka-0.key \
-       -out kafka-0-creds/kafka-0.csr \
-       -config kafka-0-creds/kafka-0.cnf \
-       -nodes
-   
-   openssl req -new \
-       -newkey rsa:2048 \
-       -keyout kafka-1-creds/kafka-1.key \
-       -out kafka-1-creds/kafka-1.csr \
-       -config kafka-1-creds/kafka-1.cnf \
-       -nodes
-   
-   openssl req -new \
-       -newkey rsa:2048 \
-       -keyout kafka-2-creds/kafka-2.key \
-       -out kafka-2-creds/kafka-2.csr \
-       -config kafka-2-creds/kafka-2.cnf \
-       -nodes
-   ```
-   
-   f. Создаем сертификаты брокеров, подписанный CA (локальный терминал):
-   
-   ```bash
-   openssl x509 -req \
-       -days 3650 \
-       -in kafka-0-creds/kafka-0.csr \
-       -CA ca.crt \
-       -CAkey ca.key \
-       -CAcreateserial \
-       -out kafka-0-creds/kafka-0.crt \
-       -extfile kafka-0-creds/kafka-0.cnf \
-       -extensions v3_req
-   
-   openssl x509 -req \
-       -days 3650 \
-       -in kafka-1-creds/kafka-1.csr \
-       -CA ca.crt \
-       -CAkey ca.key \
-       -CAcreateserial \
-       -out kafka-1-creds/kafka-1.crt \
-       -extfile kafka-1-creds/kafka-1.cnf \
-       -extensions v3_req
-   
-   openssl x509 -req \
-       -days 3650 \
-       -in kafka-2-creds/kafka-2.csr \
-       -CA ca.crt \
-       -CAkey ca.key \
-       -CAcreateserial \
-       -out kafka-2-creds/kafka-2.crt \
-       -extfile kafka-2-creds/kafka-2.cnf \
-       -extensions v3_req
-   ```
-   
-   g. Создаем PKCS12-хранилища (локальный терминал):
-   
-   ```bash
-   openssl pkcs12 -export \
-       -in kafka-0-creds/kafka-0.crt \
-       -inkey kafka-0-creds/kafka-0.key \
-       -chain \
-       -CAfile ca.pem \
-       -name kafka-0 \
-       -out kafka-0-creds/kafka-0.p12 \
-       -password pass:your-password
-   
-   openssl pkcs12 -export \
-       -in kafka-1-creds/kafka-1.crt \
-       -inkey kafka-1-creds/kafka-1.key \
-       -chain \
-       -CAfile ca.pem \
-       -name kafka-1 \
-       -out kafka-1-creds/kafka-1.p12 \
-       -password pass:your-password
-   
-   openssl pkcs12 -export \
-       -in kafka-2-creds/kafka-2.crt \
-       -inkey kafka-2-creds/kafka-2.key \
-       -chain \
-       -CAfile ca.pem \
-       -name kafka-2 \
-       -out kafka-2-creds/kafka-2.p12 \
-       -password pass:your-password
-   ```
-
-
-2. **Создайте Truststore и Keystore для каждого брокера.**
-
-   a. Начнем с создания Keystore (локальный терминал):
-   
-   ```bash
-   keytool -importkeystore \
-       -deststorepass your-password \
-       -destkeystore kafka-0-creds/kafka.kafka-0.keystore.pkcs12 \
-       -srckeystore kafka-0-creds/kafka-0.p12 \
-       -deststoretype PKCS12  \
-       -srcstoretype PKCS12 \
-       -noprompt \
-       -srcstorepass your-password
-   
-   keytool -importkeystore \
-       -deststorepass your-password \
-       -destkeystore kafka-1-creds/kafka.kafka-1.keystore.pkcs12 \
-       -srckeystore kafka-1-creds/kafka-1.p12 \
-       -deststoretype PKCS12  \
-       -srcstoretype PKCS12 \
-       -noprompt \
-       -srcstorepass your-password
-   
-   keytool -importkeystore \
-       -deststorepass your-password \
-       -destkeystore kafka-2-creds/kafka.kafka-2.keystore.pkcs12 \
-       -srckeystore kafka-2-creds/kafka-2.p12 \
-       -deststoretype PKCS12  \
-       -srcstoretype PKCS12 \
-       -noprompt \
-       -srcstorepass your-password
-   ```
-   
-   b. Создаем Truststore для Kafka (локальный терминал):
-   
-   ```bash
-   keytool -import \
-       -file ca.crt \
-       -alias ca \
-       -keystore kafka-0-creds/kafka.kafka-0.truststore.jks \
-       -storepass your-password \
-       -noprompt
-   
-   keytool -import \
-       -file ca.crt \
-       -alias ca \
-       -keystore kafka-1-creds/kafka.kafka-1.truststore.jks \
-       -storepass your-password \
-       -noprompt
-   
-   keytool -import \
-       -file ca.crt \
-       -alias ca \
-       -keystore kafka-2-creds/kafka.kafka-2.truststore.jks \
-       -storepass your-password \
-       -noprompt
-   ```
-   
-   c. Создаем файлы с паролями, которые указывали в предыдущих командах (локальный терминал):
-   
-   ```bash
-   echo "your-password" > kafka-0-creds/kafka-0_sslkey_creds
-   echo "your-password" > kafka-0-creds/kafka-0_keystore_creds
-   echo "your-password" > kafka-0-creds/kafka-0_truststore_creds
-   
-   echo "your-password" > kafka-1-creds/kafka-1_sslkey_creds
-   echo "your-password" > kafka-1-creds/kafka-1_keystore_creds
-   echo "your-password" > kafka-1-creds/kafka-1_truststore_creds
-   
-   echo "your-password" > kafka-2-creds/kafka-2_sslkey_creds
-   echo "your-password" > kafka-2-creds/kafka-2_keystore_creds
-   echo "your-password" > kafka-2-creds/kafka-2_truststore_creds
-   ```
-   
-   d. Импортируем PKCS12 в JKS (локальный терминал):
-   
-   ```bash
-   keytool -importkeystore \
-       -srckeystore kafka-0-creds/kafka-0.p12 \
-       -srcstoretype PKCS12 \
-       -destkeystore kafka-0-creds/kafka-0.keystore.jks \
-       -deststoretype JKS \
-       -deststorepass your-password
-   
-   keytool -importkeystore \
-       -srckeystore kafka-1-creds/kafka-1.p12 \
-       -srcstoretype PKCS12 \
-       -destkeystore kafka-1-creds/kafka-1.keystore.jks \
-       -deststoretype JKS \
-       -deststorepass your-password
-   
-   keytool -importkeystore \
-       -srckeystore kafka-2-creds/kafka-2.p12 \
-       -srcstoretype PKCS12 \
-       -destkeystore kafka-2-creds/kafka-2.keystore.jks \
-       -deststoretype JKS \
-       -deststorepass your-password
-   ```
-   
-   e. Импортируем CA в Truststore (локальный терминал)::
-   
-   ```bash
-   keytool -import -trustcacerts -file ca.crt \
-       -keystore kafka-0-creds/kafka-0.truststore.jks \
-       -storepass your-password -noprompt -alias ca
-   
-   keytool -import -trustcacerts -file ca.crt \
-       -keystore kafka-1-creds/kafka-1.truststore.jks \
-       -storepass your-password -noprompt -alias ca
-   
-   keytool -import -trustcacerts -file ca.crt \
-       -keystore kafka-2-creds/kafka-2.truststore.jks \
-       -storepass your-password -noprompt -alias ca
-   ```
-   
-   f. Создаем конфигурацию для ZooKeeper (для аутентификации через SASL/PLAIN) в 
-   файле `zookeeper.sasl.jaas.conf`:
-   
-   ```
-   Server {
-     org.apache.zookeeper.server.auth.DigestLoginModule required
-     user_admin="your-password";
-   };
-   ```
-   
-   g. Создаем конфигурацию Kafka для авторизации в ZooKeeper в файле 
-   `kafka_server_jaas.conf`:
-   
-   ```
-   KafkaServer {
-      org.apache.kafka.common.security.plain.PlainLoginModule required
-      username="admin"
-      password="your-password"
-      user_admin="your-password"
-      user_kafka="your-password"
-      user_producer="your-password"
-      user_consumer="your-password";
-   };
-   
-   Client {
-      org.apache.kafka.common.security.plain.PlainLoginModule required
-      username="admin"
-      password="your-password";
-   };
-   ```
-   
-   h. Добавим учетные записи клиента, создав файл `admin.properties`:
-   
-   ```
-   security.protocol=SASL_SSL
-   ssl.truststore.location=/etc/kafka/secrets/kafka.kafka-0.truststore.jks
-   ssl.truststore.password=your-password
-   sasl.mechanism=PLAIN
-   sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";
-   ```
-
-3. **Настройте дополнительные брокеры в режиме SSL.**
-
-   Реализуем `docker-compose.yaml` (в нем также реализован запуск будущих 
-   producer и consumer, поэтому лучше всего дождаться их реализации). Для 
-   запуска используется команда:
-
-   ```powershell
-   docker compose up -d
-   ```
-
-4. **Создайте топики.**
+## Создайте топики
 
    a. После запуска контейнера проверяем, что топики еще не созданы (локальный 
    терминал):
@@ -458,105 +15,509 @@ Kafka из трёх брокеров с использованием Docker Comp
    
    Должны увидеть пустой вывод.
    
-   b. Создаем два новых топика:
+   b.1 Создаем топики:
    
    ```powershell
-   docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic topic-1 --partitions 3 --replication-factor 3
+   docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
+   docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic products --partitions 3 --replication-factor 1 
    ```
-   Вывод: Created topic topic-1.
-   ```powershell
-   docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic topic-2 --partitions 3 --replication-factor 3
-   ```
-   Вывод: Created topic topic-2.
+   Вывод: Created topic products.
+   
    c. Проверяем созданные топики:
    
    ```powershell
    docker exec -it kafka-0 bash -c "kafka-topics --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --list"
    ```
-   Вывод: 
-   topic-1
-   topic-2.
-
-5. **Настройте права доступа.**
-
-   a. Настраиваем права доступа на запись для пользователя `producer` в топик 
-   `topic-1` (локальный терминал):
-   
-   ```powershell
-   docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:producer `
-   --operation ALL --topic topic-1
-
-   ```
    Вывод:
-   Adding ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-1, patternType=LITERAL)`:
-   (principal=User:producer, host=*, operation=ALL, permissionType=ALLOW)
+   products.
 
-   Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-1, patternType=LITERAL)`:
-   (principal=User:producer, host=*, operation=ALL, permissionType=ALLOW)
+## Создайте топики для destination аналогично source 
 
-   b. Настраиваем права доступа на чтение для пользователя `consumer` в топик 
-   `topic-1` (локальный терминал):
-   
-   ```powershell
-   docker exec -it kafka-0 kafka-acls `
+## ПРАВА
+```
+# 1. Права на создание и управление всеми топиками
+docker exec kafka-0 kafka-acls `
+--bootstrap-server kafka-0:9092 `
+--add `
+--allow-principal User:admin `
+--operation All `
+--topic '*' `
+--command-config /etc/kafka/secrets/admin.properties
+
+# 2. Права на работу с группами потребителей
+docker exec kafka-0 kafka-acls `
+--bootstrap-server kafka-0:9092 `
+--add `
+--allow-principal User:admin `
+--operation All `
+--group '*' `
+--command-config /etc/kafka/secrets/admin.properties
+
+# 3. Права на управление кластером
+docker exec kafka-0 kafka-acls `
+--bootstrap-server kafka-0:9092 `
+--add `
+--allow-principal User:admin `
+--operation All `
+--cluster `
+--command-config /etc/kafka/secrets/admin.properties
+
+# 4. Права на доступ к транзакциям
+docker exec kafka-0 kafka-acls `
+--bootstrap-server kafka-0:9092 `
+--add `
+--allow-principal User:admin `
+--operation All `
+--transactional-id '*' `
+--command-config /etc/kafka/secrets/admin.properties
+```
+
+### consumer
+```
+docker exec -it kafka-0 kafka-acls `
    --bootstrap-server kafka-0:9092 `
    --command-config /etc/kafka/secrets/admin.properties `
    --add --allow-principal User:consumer `
    --operation Read --group consumer-group
-
-   docker exec -it kafka-0 kafka-acls `
+   
+docker exec -it kafka-0 kafka-acls `
    --bootstrap-server kafka-0:9092 `
    --command-config /etc/kafka/secrets/admin.properties `
    --add --allow-principal User:consumer `
-   --operation ALL --topic topic-1
+   --operation ALL --topic products
+```
+## Создайте СХЕМУ для основных кластеров
 
-   ```
-   Вывод:
-   Adding ACLs for resource `ResourcePattern(resourceType=GROUP, name=consumer-group, patternType=LITERAL)`:
-   (principal=User:consumer, host=*, operation=READ, permissionType=ALLOW)
+```
+$schemaRegistryUrl = "http://localhost:18081"
+$subject = "products-value"
 
-   Current ACLs for resource `ResourcePattern(resourceType=GROUP, name=consumer-group, patternType=LITERAL)`:
-   (principal=User:consumer, host=*, operation=READ, permissionType=ALLOW)
-   
-   Adding ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-1, patternType=LITERAL)`:
-   (principal=User:consumer, host=*, operation=ALL, permissionType=ALLOW)
+$schema = @'
+{
+"type": "record",
+"name": "Product",
+"namespace": "com.example.avro",
+"fields": [
+{"name": "product_id", "type": "string"},
+{"name": "name", "type": "string"},
+{"name": "description", "type": "string"},
+{
+"name": "price",
+"type": {
+"type": "record",
+"name": "Price",
+"fields": [
+{"name": "amount", "type": "double"},
+{"name": "currency", "type": "string"}
+]
+}
+},
+{"name": "category", "type": "string"},
+{"name": "brand", "type": "string"},
+{
+"name": "stock",
+"type": {
+"type": "record",
+"name": "Stock",
+"fields": [
+{"name": "available", "type": "int"},
+{"name": "reserved", "type": "int"}
+]
+}
+},
+{"name": "sku", "type": "string"},
+{
+"name": "tags",
+"type": {
+"type": "array",
+"items": "string"
+}
+},
+{
+"name": "images",
+"type": {
+"type": "array",
+"items": {
+"type": "record",
+"name": "Image",
+"fields": [
+{"name": "url", "type": "string"},
+{"name": "alt", "type": "string"}
+]
+}
+}
+},
+{
+"name": "specifications",
+"type": {
+"type": "record",
+"name": "Specifications",
+"fields": [
+{"name": "weight", "type": "string"},
+{"name": "dimensions", "type": "string"},
+{"name": "battery_life", "type": "string"},
+{"name": "water_resistance", "type": "string"}
+]
+}
+},
+{"name": "created_at", "type": "string"},
+{"name": "updated_at", "type": "string"},
+{"name": "index", "type": "string"},
+{"name": "store_id", "type": "string"}
+]
+}
+'@
 
-   Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-1, patternType=LITERAL)`:
-   (principal=User:producer, host=*, operation=ALL, permissionType=ALLOW)
-   (principal=User:consumer, host=*, operation=ALL, permissionType=ALLOW)
+$schemaData = @{
+schema = $schema
+} | ConvertTo-Json
 
-   c. Настраиваем права доступа на запись для пользователя `producer` в топик 
-   `topic-2` (локальный терминал):
-   
-   ```powershell
-   docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:producer `
-   --operation WRITE --topic topic-2
-   ```
-   Вывод: Adding ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-2, patternType=LITERAL)`:
-   (principal=User:producer, host=*, operation=WRITE, permissionType=ALLOW)
+$headers = @{
+"Content-Type" = "application/vnd.schemaregistry.v1+json"
+}
 
-   Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-2, patternType=LITERAL)`:
-   (principal=User:producer, host=*, operation=WRITE, permissionType=ALLOW)
+try {
+$response = Invoke-RestMethod `
+-Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+-Method Post `
+-Body $schemaData `
+-Headers $headers
+Write-Output "Схема зарегистрирована. ID: $response"
+}
+catch {
+Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+}
+```
 
-   b. Настраиваем права доступа на чтение для пользователя `consumer` в топик
-      `topic-2` (локальный терминал):
+## Создайте СХЕМУ для реплики
 
-   ```powershell
-   docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --deny-principal User:consumer `
-   --operation READ --topic topic-2
-   ```
-   Вывод: Adding ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-2, patternType=LITERAL)`:
-   (principal=User:consumer, host=*, operation=READ, permissionType=DENY)
-   
-   Current ACLs for resource `ResourcePattern(resourceType=TOPIC, name=topic-2, patternType=LITERAL)`:
-   (principal=User:consumer, host=*, operation=READ, permissionType=DENY)
-   (principal=User:producer, host=*, operation=WRITE, permissionType=ALLOW)
+```
+$schemaRegistryUrl = "http://localhost:18082"
+$subject = "products-value"
+
+$schema = @'
+{
+"type": "record",
+"name": "Product",
+"namespace": "com.example.avro",
+"fields": [
+{"name": "product_id", "type": "string"},
+{"name": "name", "type": "string"},
+{"name": "description", "type": "string"},
+{
+"name": "price",
+"type": {
+"type": "record",
+"name": "Price",
+"fields": [
+{"name": "amount", "type": "double"},
+{"name": "currency", "type": "string"}
+]
+}
+},
+{"name": "category", "type": "string"},
+{"name": "brand", "type": "string"},
+{
+"name": "stock",
+"type": {
+"type": "record",
+"name": "Stock",
+"fields": [
+{"name": "available", "type": "int"},
+{"name": "reserved", "type": "int"}
+]
+}
+},
+{"name": "sku", "type": "string"},
+{
+"name": "tags",
+"type": {
+"type": "array",
+"items": "string"
+}
+},
+{
+"name": "images",
+"type": {
+"type": "array",
+"items": {
+"type": "record",
+"name": "Image",
+"fields": [
+{"name": "url", "type": "string"},
+{"name": "alt", "type": "string"}
+]
+}
+}
+},
+{
+"name": "specifications",
+"type": {
+"type": "record",
+"name": "Specifications",
+"fields": [
+{"name": "weight", "type": "string"},
+{"name": "dimensions", "type": "string"},
+{"name": "battery_life", "type": "string"},
+{"name": "water_resistance", "type": "string"}
+]
+}
+},
+{"name": "created_at", "type": "string"},
+{"name": "updated_at", "type": "string"},
+{"name": "index", "type": "string"},
+{"name": "store_id", "type": "string"}
+]
+}
+'@
+
+$schemaData = @{
+schema = $schema
+} | ConvertTo-Json
+
+$headers = @{
+"Content-Type" = "application/vnd.schemaregistry.v1+json"
+}
+
+try {
+$response = Invoke-RestMethod `
+-Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+-Method Post `
+-Body $schemaData `
+-Headers $headers
+Write-Output "Схема зарегистрирована. ID: $response"
+}
+catch {
+Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+}
+```
+
+
+## Зеркалирование
+
+### проверка
+```
+docker exec -it kafka-0 kafka-console-consumer --bootstrap-server localhost:9092 --topic topic-to-mirror --from-beginning
+```
+
+# Проверьте логи основных компонентов:
+``` powershell
+# Проверьте ZooKeeper
+docker logs zookeeper-source
+docker logs zookeeper-destination
+
+# Проверьте Kafka брокеры
+docker logs kafka-source
+docker logs kafka-destination
+
+# Проверьте MirrorMaker
+docker logs mirror-maker
+```
+
+# Подготовка коннектора
+``` powershell
+# Зарегистрируйте HDFS Sink Connector
+# Способ 1 - используем Invoke-RestMethod (рекомендуется)
+# $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors" -Method Post -Headers @{"Content-Type" = "application/json"} -Body (Get-Content -Raw -Path "hdfs-sink-config.json")
+# Write-Host "Коннектор создан: $($response | ConvertTo-Json)"
+
+# Создадим новый коннектор с правильными настройками
+# Создадим новый коннектор с правильными настройками
+$connectorConfig = @{
+    "name" = "hdfs-sink-avro-connector"
+    "config" = @{
+        "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
+        "tasks.max" = "1"
+        "topics" = "products"
+        "hdfs.url" = "hdfs://hadoop-namenode:9000"
+        "hadoop.conf.dir" = "/etc/hadoop/conf"
+        "hadoop.home" = "/opt/hadoop"
+        "flush.size" = "3"
+        "format.class" = "io.confluent.connect.hdfs.avro.AvroFormat"
+        "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
+        "key.converter.schemas.enable" = "false"
+        "value.converter" = "io.confluent.connect.avro.AvroConverter"
+        "value.converter.schema.registry.url" = "http://schema-registry-destination:8081"
+        "schema.compatibility" = "BACKWARD"
+        "errors.tolerance" = "all"
+        "errors.log.enable" = "true"
+        "errors.log.include.messages" = "true"
+        "hdfs.authentication.kerberos" = "false"
+        "topics.dir" = "/data"
+        "logs.dir" = "/logs"
+    }
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
+
+
+# Создадим директории с правильными правами
+docker exec hadoop-namenode hdfs dfs -mkdir -p /data
+docker exec hadoop-namenode hdfs dfs -mkdir -p /logs
+docker exec hadoop-namenode hdfs dfs -chmod -R 777 /data /logs
+
+# Проверим
+docker exec hadoop-namenode hdfs dfs -ls -R /
+
+# перезапуск
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-string-connector/restart" -Method Post -ContentType "application/json"
+
+# Проверим статус
+Start-Sleep -Seconds 10
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-string-connector/status" -Method Get
+
+# изменение при необходимости
+$connectorConfig = @{
+    "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
+    "tasks.max" = "1"
+    "topics" = "products"
+    "hdfs.url" = "hdfs://hadoop-namenode:9000"
+    "hadoop.conf.dir" = "/etc/hadoop/conf"
+    "hadoop.home" = "/opt/hadoop"
+    "flush.size" = "100"
+    "format.class" = "io.confluent.connect.hdfs.avro.AvroFormat"
+    
+    # ИЗМЕНИТЬ: ключи как строки, значения как Avro
+    "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
+    "key.converter.schemas.enable" = "false"
+    "value.converter" = "io.confluent.connect.avro.AvroConverter"
+    "value.converter.schema.registry.url" = "http://schema-registry-destination:8081"
+    
+    "schema.compatibility" = "BACKWARD"
+    "errors.tolerance" = "all"
+    "errors.log.enable" = "true"
+    "errors.log.include.messages" = "true"
+}
+
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-avro-connector/config" -Method Put -ContentType "application/json" -Body ($connectorConfig | ConvertTo-Json -Depth 10)
+
+# Проверим статус
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-avro-connector/status" -Method Get
+
+# Проверим данные в HDFS через несколько минут
+docker exec hadoop-namenode hdfs dfs -ls -R / | findstr topics
+
+# Проверим логи на успешную запись
+docker logs kafka-connect | Select-String -Pattern "committed|flush|HDFS" | Select-Object -Last 10
+```
+
+📊 Мониторинг:
+Spark UI: [http://localhost:8081](URL)
+
+HDFS UI: [http://localhost:9870](URL)
+
+Проверка данных: hdfs dfs -ls /test_data
+
+# HDFS - > Spark - > HDFS
+запустите класс HDFSProcessing
+
+# HDFS - > Kafka-destination
+запустите класс HDFSToKafka
+
+
+#SPARK ВРЕМЕННО ЗАКОММЕНТИРОВАН, НЕТ МЕСТА, КОНФИГУРАЦИЯ ВЕРНАЯ, НА КОД НЕДОСТАТОЧНО РАЗРЕШЕНИЙ
+
+
+```
+curl -X POST -H "Content-Type: application/json" --data @- http://localhost:8083/connectors << EOF
+{
+"name": "postgres-source-connector",
+"config": {
+"connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+"database.hostname": "postgres",
+"database.port": "5432",
+"database.user": "postgres-user",
+"database.password": "postgres-pw",
+"database.dbname": "customers",
+"database.server.name": "postgres-server",
+"plugin.name": "pgoutput",
+"slot.name": "debezium",
+"publication.name": "dbz_publication",
+"table.include.list": "public.(.*)",
+"tombstones.on.delete": "true",
+"transforms": "unwrap",
+"transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+"transforms.unwrap.drop.tombstones": "false",
+"transforms.unwrap.delete.handling.mode": "rewrite",
+"key.converter": "io.confluent.connect.avro.AvroConverter",
+"value.converter": "io.confluent.connect.avro.AvroConverter",
+"key.converter.schema.registry.url": "http://schema-registry:8081",
+"value.converter.schema.registry.url": "http://schema-registry:8081"
+}
+}
+EOF
+```
+
+```
+curl -X POST -H "Content-Type: application/json" --data @- http://localhost:8083/connectors << EOF
+{
+  "name": "postgres-sink-connector",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "your-target-topic",
+    "connection.url": "jdbc:postgresql://postgres:5432/customers",
+    "connection.user": "postgres-user",
+    "connection.password": "postgres-pw",
+    "insert.mode": "upsert",
+    "pk.mode": "record_key",
+    "pk.fields": "id",
+    "auto.create": "true",
+    "auto.evolve": "true",
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+    "value.converter.schema.registry.url": "http://schema-registry:8081"
+  }
+}
+EOF
+```
+
+# Команда для создания JDBC Sink Connector
+```
+$jsonConfig = @'
+{
+"name": "jdbc-postgres-products-sink",
+"config": {
+"connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+"tasks.max": "1",
+"topics": "products",
+"connection.url": "jdbc:postgresql://postgres:5432/shop",
+"connection.user": "postgres-user",
+"connection.password": "postgres-pw",
+"auto.create": "false",
+"auto.evolve": "false",
+"insert.mode": "upsert",
+"pk.mode": "record_value",
+"pk.fields": "product_id",
+"table.name.format": "products",
+"transforms": "unwrap,extractTimestamp",
+"transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+"transforms.unwrap.drop.tombstones": "false",
+"transforms.extractTimestamp.type": "org.apache.kafka.connect.transforms.InsertField$Value",
+"transforms.extractTimestamp.timestamp.field": "processed_at",
+"key.converter": "org.apache.kafka.connect.storage.StringConverter",
+"value.converter": "io.confluent.connect.avro.AvroConverter",
+"value.converter.schema.registry.url": "http://schema-registry:8081",
+"value.converter.schema.registry.ssl.truststore.location": "/etc/kafka/secrets/kafka-0.truststore.jks",
+"value.converter.schema.registry.ssl.truststore.password": "your-password",
+"value.converter.schema.registry.basic.auth.credentials.source": "USER_INFO",
+"value.converter.schema.registry.basic.auth.user.info": "admin:your-password",
+"consumer.override.security.protocol": "SASL_SSL",
+"consumer.override.sasl.mechanism": "PLAIN",
+"consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"admin\" password=\"your-password\";",
+"consumer.override.ssl.truststore.location": "/etc/kafka/secrets/kafka-0.truststore.jks",
+"consumer.override.ssl.truststore.password": "your-password"
+}
+}
+'@
+
+# Создание коннектора
+Invoke-RestMethod -Uri "http://localhost:18083/connectors" `
+-Method Post `
+-ContentType "application/json" `
+-Body $jsonConfig
+
+# Проверка статуса
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/jdbc-postgres-products-sink/status"
+```
