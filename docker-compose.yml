@@ -186,56 +186,33 @@ services:
     networks:
       - kafka-connect-network
 
-  # Kafka Connect для работы с файлами (основной кластер)
-  kafka-connect-files:
-    image: confluentinc/cp-kafka-connect:7.4.4
-    container_name: kafka-connect-files
-    hostname: kafka-connect-files
-    depends_on:
-      - kafka-0
-      - kafka-1
-      - kafka-2
+  postgres:
+    image: debezium/postgres:16
+    hostname: postgres
+    container_name: postgres
     ports:
-      - "28084:8084"
+      - "5432:5432"
     environment:
-      # Подключение к основному кластеру Kafka
-      CONNECT_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
-      CONNECT_GROUP_ID: kafka-connect-files-cluster
-      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs-files
-      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets-files
-      CONNECT_STATUS_STORAGE_TOPIC: _connect-status-files
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 3
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 3
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 3
-
-      # Безопасность основного кластера
-      CONNECT_SECURITY_PROTOCOL: SASL_SSL
-      CONNECT_SASL_MECHANISM: PLAIN
-      CONNECT_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
-      CONNECT_SSL_TRUSTSTORE_PASSWORD: your-password
-      CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
-
-      # Конвертеры для текстовых файлов
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-
-      # Настройки REST API
-      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect-files
-      CONNECT_REST_PORT: 8084
-
-      # Путь к плагинам
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+      POSTGRES_USER: postgres-user
+      POSTGRES_PASSWORD: postgres-pw
+      POSTGRES_DB: shop
     volumes:
-      - ./kafka-0-creds:/etc/kafka/secrets:ro
-      # Директория для файлов
-      - ./file-data:/home/appuser/data
-      # Монтирование файловых коннекторов
-      - ./confluent-hub-components:/usr/share/confluent-hub-components
+      - ./postgres/custom-config.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     networks:
       - kafka-connect-network
-    restart: unless-stopped
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - kafka-connect-network
 
   # --- MIRRORMAKER DESTINATION CLUSTER --- (без безопасности, для HDFS)
   zookeeper-destination:
@@ -479,15 +456,20 @@ services:
     container_name: kafka-connect
     hostname: kafka-connect
     depends_on:
+      - kafka-0
+      - kafka-1
+      - kafka-2
+      - schema-registry
       - kafka-0-destination
       - kafka-1-destination
       - kafka-2-destination
       - schema-registry-destination
       - hadoop-namenode
+      - postgres
     ports:
       - "18083:8083"
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      # Основные настройки Connect
       CONNECT_GROUP_ID: kafka-connect-cluster
       CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
       CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
@@ -495,10 +477,30 @@ services:
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 3
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 3
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 3
+
+      # Настройки для ОСНОВНОГО кластера (JDBC Sink)
+      CONNECT_BOOTSTRAP_SERVERS: SASL_SSL://kafka-0:9092,SASL_SSL://kafka-1:9092,SASL_SSL://kafka-2:9092
+      CONNECT_SECURITY_PROTOCOL: SASL_SSL
+      CONNECT_SASL_MECHANISM: PLAIN
+      CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="your-password";'
+      CONNECT_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka-0.truststore.jks
+      CONNECT_SSL_TRUSTSTORE_PASSWORD: your-password
+
+      # Конвертеры для основного кластера
       CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
-      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
-      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # Настройки для ЦЕЛЕВОГО кластера (HDFS Sink)
+      CONNECT_PRODUCER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      CONNECT_PRODUCER_SECURITY_PROTOCOL: PLAINTEXT
+      CONNECT_PRODUCER_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_PRODUCER_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+      CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+
+      # Общие настройки
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_REST_PORT: 8083
       CONNECT_HTTP_REQUEST_TIMEOUT_MS: 120000
@@ -507,19 +509,11 @@ services:
     volumes:
       - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
       - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
-      # Монтирование HDFS connector
+      - ./kafka-0-creds:/etc/kafka/secrets:ro
       - ./confluent-hub-components:/usr/share/confluent-hub-components
     networks:
       - kafka-connect-network
     restart: unless-stopped
-      # Добавьте команду для автоматической установки коннектора
-    command: >
-      bash -c "
-        echo 'Installing HDFS connector...' &&
-        confluent-hub install --no-prompt confluentinc/kafka-connect-hdfs:latest &&
-        echo 'Starting Kafka Connect...' &&
-        /etc/confluent/docker/run
-      "
   # --- SPARK CLUSTER --- временно закомментировано
   spark-master:
     image: bitnami/spark:3.5.0
@@ -588,6 +582,26 @@ services:
     depends_on:
       - spark-master
       - hadoop-namenode
+    networks:
+      - kafka-connect-network
+
+  prometheus:
+    image: prom/prometheus:v2.30.3
+    ports:
+      - 9090:9090
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
+    links:
+      - kafka-connect
+    networks:
+      - kafka-connect-network
+
+  grafana:
+    build:
+      context: ./grafana
+    ports:
+      - 3000:3000
     networks:
       - kafka-connect-network
 

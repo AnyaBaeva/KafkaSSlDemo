@@ -295,3 +295,49 @@ docker exec hadoop-namenode hdfs dfs -chmod -R 777 /data /logs
 # Проверим
 docker exec hadoop-namenode hdfs dfs -ls -R /
 
+
+$jsonConfig = @'
+{
+  "name": "jdbc-postgres-products-sink",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "products",
+    "connection.url": "jdbc:postgresql://postgres:5432/shop",
+    "connection.user": "postgres-user",
+    "connection.password": "postgres-pw",
+    "auto.create": "false",
+    "auto.evolve": "false",
+    "insert.mode": "upsert",
+    "pk.mode": "record_value",
+    "pk.fields": "product_id",
+    "table.name.format": "products",
+    "transforms": "unwrap,extractTimestamp",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.extractTimestamp.type": "org.apache.kafka.connect.transforms.InsertField$Value",
+    "transforms.extractTimestamp.timestamp.field": "processed_at",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+    "value.converter.schema.registry.ssl.truststore.location": "/etc/kafka/secrets/kafka-0.truststore.jks",
+    "value.converter.schema.registry.ssl.truststore.password": "your-password",
+    "value.converter.schema.registry.basic.auth.credentials.source": "USER_INFO",
+    "value.converter.schema.registry.basic.auth.user.info": "admin:your-password",
+    "consumer.override.security.protocol": "SASL_SSL",
+    "consumer.override.sasl.mechanism": "PLAIN",
+    "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"admin\" password=\"your-password\";",
+    "consumer.override.ssl.truststore.location": "/etc/kafka/secrets/kafka-0.truststore.jks",
+    "consumer.override.ssl.truststore.password": "your-password"
+  }
+}
+'@
+
+# Создание коннектора
+Invoke-RestMethod -Uri "http://localhost:18083/connectors" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $jsonConfig
+
+# Проверка статуса
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/jdbc-postgres-products-sink/status"
