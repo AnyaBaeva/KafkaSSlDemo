@@ -18,7 +18,8 @@ x-kafka-common-env: &kafka-common-env
   KAFKA_SUPER_USERS: User:admin
   KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/config/kafka_server_jaas.conf"
   KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_SSL:SASL_SSL,OUTBOUND:SASL_SSL
-
+  # Memory settings - ДОБАВЛЕНО
+  KAFKA_HEAP_OPTS: "-Xmx1G -Xms1G"
 services:
   # Основной кластер
   zookeeper:
@@ -186,34 +187,6 @@ services:
     networks:
       - kafka-connect-network
 
-  postgres:
-    image: debezium/postgres:16
-    hostname: postgres
-    container_name: postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres-user
-      POSTGRES_PASSWORD: postgres-pw
-      POSTGRES_DB: shop
-    volumes:
-      - ./postgres/custom-config.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf
-    networks:
-      - kafka-connect-network
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    networks:
-      - kafka-connect-network
-
   # --- MIRRORMAKER DESTINATION CLUSTER --- (без безопасности, для HDFS)
   zookeeper-destination:
     image: confluentinc/cp-zookeeper:7.4.4
@@ -308,8 +281,8 @@ services:
       - ./kafka-0-creds:/etc/kafka/secrets:ro
     command: >
       bash -c "
-          echo 'Starting MirrorMaker...' &&
-          kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist 'products' --num.streams 3
+          echo 'Starting MirrorMaker for ALL topics...' &&
+          kafka-mirror-maker --consumer.config /etc/kafka/mirror-consumer.properties --producer.config /etc/kafka/mirror-producer.properties --whitelist '.*' --num.streams 3
         "
     depends_on:
       - kafka-0
@@ -465,7 +438,6 @@ services:
       - kafka-2-destination
       - schema-registry-destination
       - hadoop-namenode
-      - postgres
     ports:
       - "18083:8083"
     environment:
@@ -487,16 +459,16 @@ services:
       CONNECT_SSL_TRUSTSTORE_PASSWORD: your-password
 
       # Конвертеры для основного кластера
-      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
-      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
       # Настройки для ЦЕЛЕВОГО кластера (HDFS Sink)
       CONNECT_PRODUCER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
       CONNECT_PRODUCER_SECURITY_PROTOCOL: PLAINTEXT
-      CONNECT_PRODUCER_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
-      CONNECT_PRODUCER_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_PRODUCER_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_PRODUCER_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
       CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
 
@@ -505,12 +477,14 @@ services:
       CONNECT_REST_PORT: 8083
       CONNECT_HTTP_REQUEST_TIMEOUT_MS: 120000
       HADOOP_CONF_DIR: /etc/hadoop/conf
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/java/kafka"
     volumes:
       - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
       - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./kafka-0-creds:/etc/kafka/secrets:ro
       - ./confluent-hub-components:/usr/share/confluent-hub-components
+      - ./confluent-hub-components/FileStreamSinkConnector:/usr/share/confluent-hub-components/FileStreamSinkConnector
+      - ./connector-output:/data/output
     networks:
       - kafka-connect-network
     restart: unless-stopped
@@ -615,6 +589,8 @@ volumes:
   hadoop_datanode_data_3:
     driver: local
   kafka_connect_plugins:
+    driver: local
+  pgadmin-data: # Добавьте этот volume
     driver: local
 
 
