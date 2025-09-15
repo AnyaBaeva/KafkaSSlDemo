@@ -1,9 +1,9 @@
 # Перейти в папку, где лежит файл docker-compose
-сd C:\projects\KafkaSSlDemo
+cd C:\projects\KafkaSSlDemo
 # Запустить установку
 docker-compose up -d
 # Подождать запуска всех сервисов
-Start-Sleep -Seconds 90
+Start-Sleep -Seconds 120
 # Создать топики
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic inputJsonStream --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3

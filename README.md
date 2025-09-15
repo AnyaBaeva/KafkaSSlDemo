@@ -58,3 +58,17 @@ java -cp "C:/projects/KafkaSSlDemo/target/project_6-1.0-SNAPSHOT-jar-with-depend
 В результате:
 1. Запрос будет записан в топик **userQuery**
 2. Результаты отправлены в топик **response**
+
+
+# Prometheus
+## проверить метрики
+Убедитесь что у Prometheus есть доступ к kafka-connect-host. 
+1. Перейдите в Prometheus. Для этого в браузере введите ссылку http://localhost:9090
+2. Нажав на вкладку “Status”, выберите поле “Targets”. В окне вы должны увидеть 2 сервиса
+prometheus и kafka-connect-host. У каждого статус = up, результат для prometheus:
+![img_1.png](img_1.png)
+
+http://localhost:9876/metrics
+# Grafana
+1. Для просмотра метрик запустите Grafana (login/pass admin/admin) **http://localhost:3000**
+2. Импортируйте файл с настройками **./KafkaDebezium/grafana/dashboards/connect.json**

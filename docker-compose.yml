@@ -356,7 +356,8 @@ services:
     depends_on:
       - hadoop-namenode
     ports:
-      - "9864:9864"
+      - "9864:9864"  # HTTP-порт для Web UI DataNode №1
+      - "9970:9970"  # RPC порт для запросов от NameNode
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
@@ -383,7 +384,8 @@ services:
     depends_on:
       - hadoop-namenode
     ports:
-      - "9865:9865"
+      - "9865:9865"  # HTTP-порт для Web UI DataNode №1
+      - "9971:9971"  # RPC порт для запросов от NameNode
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
@@ -410,7 +412,8 @@ services:
     depends_on:
       - hadoop-namenode
     ports:
-      - "9866:9866"
+      - "9866:9866"  # HTTP-порт для Web UI DataNode №1
+      - "9972:9972"  # RPC порт для запросов от NameNode
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
@@ -425,7 +428,7 @@ services:
     image: confluentinc/cp-kafka-connect:7.4.4
     build:
       context: .
-      dockerfile: Dockerfile-kafka-connect
+      dockerfile: ./kafka-connect
     container_name: kafka-connect
     hostname: kafka-connect
     depends_on:
@@ -440,6 +443,7 @@ services:
       - hadoop-namenode
     ports:
       - "18083:8083"
+      - "9876:9876"   # Добавьте эту строку для JMX метрик :cite[1]:cite[2]
     environment:
       # Основные настройки Connect
       CONNECT_GROUP_ID: kafka-connect-cluster
@@ -472,7 +476,7 @@ services:
       CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
       CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
 
-      # Общие настройки
+      KAFKA_OPTS: "-javaagent:/opt/jmx_prometheus_javaagent-0.15.0.jar=9876:/opt/kafka-connect.yml"
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
       CONNECT_REST_PORT: 8083
       CONNECT_HTTP_REQUEST_TIMEOUT_MS: 120000
@@ -485,6 +489,8 @@ services:
       - ./confluent-hub-components:/usr/share/confluent-hub-components
       - ./confluent-hub-components/FileStreamSinkConnector:/usr/share/confluent-hub-components/FileStreamSinkConnector
       - ./connector-output:/data/output
+      - ./kafka-connect.yml:/opt/kafka-connect.yml:ro  # Монтируем конфиг JMX Exporter
+      - ./jmx_prometheus_javaagent-0.15.0.jar:/opt/jmx_prometheus_javaagent-0.15.0.jar:ro # Монтируем JAR агента
     networks:
       - kafka-connect-network
     restart: unless-stopped
@@ -498,6 +504,7 @@ services:
       - "7077:7077"  # Spark Master port
     environment:
       - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
@@ -507,6 +514,7 @@ services:
       - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
       - ./spark-apps:/opt/spark-apps
+      - ./ssl/client:/kafka-client-creds:ro
     depends_on:
       - hadoop-namenode
       - hadoop-datanode-1
@@ -553,6 +561,7 @@ services:
       - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
       - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./ssl/client:/kafka-client-creds:ro
     depends_on:
       - spark-master
       - hadoop-namenode
@@ -561,21 +570,24 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.30.3
+    container_name: prometheus
     ports:
-      - 9090:9090
+      - "9090:9090"
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command: --web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yml
     links:
       - kafka-connect
     networks:
       - kafka-connect-network
 
+
   grafana:
     build:
       context: ./grafana
+    container_name: grafana
     ports:
-      - 3000:3000
+      - "3000:3000"
     networks:
       - kafka-connect-network
 
@@ -592,6 +604,9 @@ volumes:
     driver: local
   pgadmin-data: # Добавьте этот volume
     driver: local
+  kafka-0-destination:
+  kafka-1-destination:
+  kafka-2-destination:
 
 
 networks:
