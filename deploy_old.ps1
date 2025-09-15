@@ -1,10 +1,4 @@
-# Перейти в папку, где лежит файл docker-compose
-cd C:\projects\KafkaSSlDemo
-# Запустить установку
-docker-compose up -d
-# Подождать запуска всех сервисов
-Start-Sleep -Seconds 120
-# Создать топики
+# создать топики
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic inputJsonStream --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic blockedProducts --partitions 3 --replication-factor 3
@@ -15,7 +9,7 @@ docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kaf
 docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic blockedProducts --partitions 3 --replication-factor 1
 docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic response --partitions 3 --replication-factor 1
 docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic userQuery --partitions 3 --replication-factor 1
-# Выдать права
+
 # 1. Права на создание и управление всеми топиками
 docker exec kafka-0 kafka-acls `
 --bootstrap-server kafka-0:9092 `
@@ -134,7 +128,237 @@ docker exec -it kafka-2 kafka-acls `
    --add --allow-principal User:admin `
    --operation All --group file-sink-group
 
-# Регистрация HDFS Sink Connector JsonFormat
+# # Создайте СХЕМУ для основных кластеров
+# $schemaRegistryUrl = "http://localhost:18081"
+# $subject = "products-value"
+
+# $schema = @'
+# {
+# "type": "record",
+# "name": "Product",
+# "namespace": "com.example.avro",
+# "fields": [
+# {"name": "product_id", "type": "string"},
+# {"name": "name", "type": "string"},
+# {"name": "description", "type": "string"},
+# {
+# "name": "price",
+# "type": {
+# "type": "record",
+# "name": "Price",
+# "fields": [
+# {"name": "amount", "type": "double"},
+# {"name": "currency", "type": "string"}
+# ]
+# }
+# },
+# {"name": "category", "type": "string"},
+# {"name": "brand", "type": "string"},
+# {
+# "name": "stock",
+# "type": {
+# "type": "record",
+# "name": "Stock",
+# "fields": [
+# {"name": "available", "type": "int"},
+# {"name": "reserved", "type": "int"}
+# ]
+# }
+# },
+# {"name": "sku", "type": "string"},
+# {
+# "name": "tags",
+# "type": {
+# "type": "array",
+# "items": "string"
+# }
+# },
+# {
+# "name": "images",
+# "type": {
+# "type": "array",
+# "items": {
+# "type": "record",
+# "name": "Image",
+# "fields": [
+# {"name": "url", "type": "string"},
+# {"name": "alt", "type": "string"}
+# ]
+# }
+# }
+# },
+# {
+# "name": "specifications",
+# "type": {
+# "type": "record",
+# "name": "Specifications",
+# "fields": [
+# {"name": "weight", "type": "string"},
+# {"name": "dimensions", "type": "string"},
+# {"name": "battery_life", "type": "string"},
+# {"name": "water_resistance", "type": "string"}
+# ]
+# }
+# },
+# {"name": "created_at", "type": "string"},
+# {"name": "updated_at", "type": "string"},
+# {"name": "index", "type": "string"},
+# {"name": "store_id", "type": "string"}
+# ]
+# }
+# '@
+#
+# $schemaData = @{
+# schema = $schema
+# } | ConvertTo-Json
+#
+# $headers = @{
+# "Content-Type" = "application/vnd.schemaregistry.v1+json"
+# }
+#
+# try {
+# $response = Invoke-RestMethod `
+# -Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+# -Method Post `
+# -Body $schemaData `
+# -Headers $headers
+# Write-Output "Схема зарегистрирована. ID: $response"
+# }
+# catch {
+# Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+# }
+
+# #Создайте СХЕМУ для реплики
+# $schemaRegistryUrl = "http://localhost:18082"
+# $subject = "products-value"
+#
+# $schema = @'
+# {
+# "type": "record",
+# "name": "Product",
+# "namespace": "com.example.avro",
+# "fields": [
+# {"name": "product_id", "type": "string"},
+# {"name": "name", "type": "string"},
+# {"name": "description", "type": "string"},
+# {
+# "name": "price",
+# "type": {
+# "type": "record",
+# "name": "Price",
+# "fields": [
+# {"name": "amount", "type": "double"},
+# {"name": "currency", "type": "string"}
+# ]
+# }
+# },
+# {"name": "category", "type": "string"},
+# {"name": "brand", "type": "string"},
+# {
+# "name": "stock",
+# "type": {
+# "type": "record",
+# "name": "Stock",
+# "fields": [
+# {"name": "available", "type": "int"},
+# {"name": "reserved", "type": "int"}
+# ]
+# }
+# },
+# {"name": "sku", "type": "string"},
+# {
+# "name": "tags",
+# "type": {
+# "type": "array",
+# "items": "string"
+# }
+# },
+# {
+# "name": "images",
+# "type": {
+# "type": "array",
+# "items": {
+# "type": "record",
+# "name": "Image",
+# "fields": [
+# {"name": "url", "type": "string"},
+# {"name": "alt", "type": "string"}
+# ]
+# }
+# }
+# },
+# {
+# "name": "specifications",
+# "type": {
+# "type": "record",
+# "name": "Specifications",
+# "fields": [
+# {"name": "weight", "type": "string"},
+# {"name": "dimensions", "type": "string"},
+# {"name": "battery_life", "type": "string"},
+# {"name": "water_resistance", "type": "string"}
+# ]
+# }
+# },
+# {"name": "created_at", "type": "string"},
+# {"name": "updated_at", "type": "string"},
+# {"name": "index", "type": "string"},
+# {"name": "store_id", "type": "string"}
+# ]
+# }
+# '@
+#
+# $schemaData = @{
+# schema = $schema
+# } | ConvertTo-Json
+#
+# $headers = @{
+# "Content-Type" = "application/vnd.schemaregistry.v1+json"
+# }
+#
+# try {
+# $response = Invoke-RestMethod `
+# -Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+# -Method Post `
+# -Body $schemaData `
+# -Headers $headers
+# Write-Output "Схема зарегистрирована для реплики. ID: $response"
+# }
+# catch {
+# Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+# }
+
+# Зарегистрируйте HDFS Sink Connector AvroFormat
+# $connectorConfig = @{
+#     "name" = "hdfs-sink-avro-connector"
+#     "config" = @{
+#         "connector.class" = "io.confluent.connect.hdfs3.Hdfs3SinkConnector"
+#         "tasks.max" = "1"
+#         "topics" = "products"
+#         "hdfs.url" = "hdfs://hadoop-namenode:9000"
+#         "hadoop.conf.dir" = "/etc/hadoop/conf"
+#         "flush.size" = "3"
+#
+#         "format.class" = "io.confluent.connect.hdfs3.avro.AvroFormat"
+#
+#         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
+#         "key.converter.schemas.enable" = "false"
+#         "value.converter" = "io.confluent.connect.avro.AvroConverter"
+#         "value.converter.schema.registry.url" = "http://schema-registry-destination:8081"
+#         "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092"
+#         "schema.compatibility" = "BACKWARD"
+#         "errors.tolerance" = "all"
+#         "errors.log.enable" = "true"
+#         "errors.log.include.messages" = "true"
+#         "hdfs.authentication.kerberos" = "false"
+#         "topics.dir" = "/data"
+#         "logs.dir" = "/logs"
+#     }
+# } | ConvertTo-Json -Depth 10
+#
+# Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
+
+# Зарегистрируйте HDFS Sink Connector JsonFormat
 try {
     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
     Write-Host "Старый коннектор удален"
@@ -171,15 +395,63 @@ $connectorConfig = @{
 
 Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
 
-# Создать директории с правильными правами
+# Создадим директории с правильными правами
 docker exec hadoop-namenode hdfs dfs -mkdir -p /data
 docker exec hadoop-namenode hdfs dfs -mkdir -p /logs
 docker exec hadoop-namenode hdfs dfs -chmod -R 777 /data /logs
 
-# Проверка
+# Проверим
 docker exec hadoop-namenode hdfs dfs -ls -R /
 
-# Создать коннектор FileStreamSink
+# Зарегистрируйте JdbcSinkConnector
+#
+# $jsonConfig = @'
+# {
+#   "name": "jdbc-postgres-products-sink",
+#   "config": {
+#     "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+#     "tasks.max": "1",
+#     "topics": "products",
+#     "connection.url": "jdbc:postgresql://postgres:5432/shop",
+#     "connection.user": "postgres-user",
+#     "connection.password": "postgres-pw",
+#     "auto.create": "true",
+#     "insert.mode": "upsert",
+#     "pk.mode": "record_value",
+#     "pk.fields": "id",
+#     "table.name.format": "products",
+#
+#     # Конвертеры для Avro данных основного кластера
+#     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+#     "value.converter": "io.confluent.connect.avro.AvroConverter",
+#     "value.converter.schema.registry.url": "http://schema-registry:8081",
+#     "value.converter.schema.registry.basic.auth.credentials.source": "USER_INFO",
+#     "value.converter.schema.registry.basic.auth.user.info": "admin:your-password",
+#
+#     # Настройки безопасности основного кластера (SASL_SSL)
+#     "producer.security.protocol": "SASL_SSL",
+#     "producer.sasl.mechanism": "PLAIN",
+#     "producer.sasl.jaas.config": "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"admin\" password=\"your-password\";",
+#     "producer.ssl.truststore.location": "/etc/kafka/secrets/kafka-0.truststore.jks",
+#     "producer.ssl.truststore.password": "your-password",
+#
+#     # Дополнительные настройки
+#     "errors.tolerance": "all",
+#     "errors.log.enable": "true",
+#     "errors.log.include.messages": "true"
+#   }
+# }
+# '@
+#
+# # Регистрируем на kafka-connect-files (который работает с основным кластером)
+# Invoke-RestMethod -Uri "http://localhost:28083/connectors" `
+#   -Method Post `
+#   -ContentType "application/json" `
+#   -Body $jsonConfig
+# # Проверка статуса
+# Invoke-RestMethod -Uri "http://localhost:18083/connectors/jdbc-postgres-products-sink/status"
+
+# Создадим коннектор FileStreamSink
 try {
     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
     Write-Host "Старый коннектор удален"
@@ -198,7 +470,7 @@ $body = @{
 
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
         "value.converter" = "org.apache.kafka.connect.json.JsonConverter"
-        "value.converter.schemas.enable" = "false"
+        "value.converter.schemas.enable" = "false"  
 
         "consumer.override.bootstrap.servers" = "kafka-0:9092,kafka-1:9092,kafka-2:9092"
         "consumer.override.security.protocol" = "SASL_SSL"

@@ -2232,7 +2232,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "kafka_producer_topic_record_send_total{clientId=\"connector-producer-postgres-source-0\",instance=\"kafka-connect:9876\",topic=\"postgresql-jdbc-bulk-users\"}",
+          "expr": "kafka_producer_topic_record_send_total{clientId=\"file-sink-products-final\",instance=\"kafka-connect:9876\",topic=\"products\"}",
           "format": "time_series",
           "instant": false,
           "interval": "",
