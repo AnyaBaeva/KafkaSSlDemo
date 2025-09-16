@@ -1,9 +1,9 @@
-# Перейти в папку, где лежит файл docker-compose
-cd C:\projects\KafkaSSlDemo
-# Запустить установку
-docker-compose up -d
-# Подождать запуска всех сервисов
-Start-Sleep -Seconds 120
+# # Перейти в папку, где лежит файл docker-compose
+# cd C:\projects\KafkaSSlDemo
+# # Запустить установку
+# docker-compose up -d
+# # Подождать запуска всех сервисов
+# Start-Sleep -Seconds 120
 # Создать топики
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic inputJsonStream --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
@@ -122,18 +122,6 @@ docker exec -it kafka-0 kafka-acls `
    --add --allow-principal User:admin `
    --operation All --group file-sink-group
 
-docker exec -it kafka-1 kafka-acls `
-   --bootstrap-server kafka-1:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --group file-sink-group
-
-docker exec -it kafka-2 kafka-acls `
-   --bootstrap-server kafka-2:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --group file-sink-group
-
 # Регистрация HDFS Sink Connector JsonFormat
 try {
     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
@@ -148,9 +136,8 @@ $connectorConfig = @{
         "connector.class" = "io.confluent.connect.hdfs3.Hdfs3SinkConnector"
         "tasks.max" = "1"
         "topics" = "products"
-        "hdfs.url" = "hdfs://hadoop-namenode:9000"
-        "hadoop.conf.dir" = "/etc/hadoop/conf"
-        "flush.size" = "3"
+        "hdfs.url" = "hdfs://namenode:9000"
+        "flush.size" = "1000"
 
         "format.class" = "io.confluent.connect.hdfs3.json.JsonFormat"
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
@@ -159,25 +146,33 @@ $connectorConfig = @{
         "value.converter.schemas.enable" = "false"
 
         "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092"
-        "schema.compatibility" = "NONE"  # Для JSON обычно не используется
+        "schema.compatibility" = "NONE"
         "errors.tolerance" = "all"
         "errors.log.enable" = "true"
         "errors.log.include.messages" = "true"
         "hdfs.authentication.kerberos" = "false"
         "topics.dir" = "/data"
         "logs.dir" = "/logs"
+
+        "rotate.interval.ms" = "3600000"
     }
 } | ConvertTo-Json -Depth 10
 
+# Отправка конфигурации в Kafka Connect REST API
 Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
 
-# Создать директории с правильными правами
-docker exec hadoop-namenode hdfs dfs -mkdir -p /data
-docker exec hadoop-namenode hdfs dfs -mkdir -p /logs
-docker exec hadoop-namenode hdfs dfs -chmod -R 777 /data /logs
+# # Проверка существующих директорий
+# docker exec hadoop-namenode hdfs dfs -ls /
+# #Если вы видите директории /data и /logs, то ничего создавать не нужно!
+#
+# # Правильные команды (если действительно нужно)
+# docker exec hadoop-namenode hdfs dfs -mkdir -p /data
+# docker exec hadoop-namenode hdfs dfs -mkdir -p /logs
+# docker exec hadoop-namenode hdfs dfs -chmod 755 /data
+# docker exec hadoop-namenode hdfs dfs -chmod 755 /logs
 
-# Проверка
-docker exec hadoop-namenode hdfs dfs -ls -R /
+# права, если надо
+# docker exec hadoop-namenode hdfs dfs -chmod -R 777 /
 
 # Создать коннектор FileStreamSink
 try {
@@ -215,3 +210,4 @@ $body = @{
 Invoke-RestMethod -Uri "http://localhost:18083/connectors" -Method Post `
     -ContentType "application/json" `
     -Body $body
+

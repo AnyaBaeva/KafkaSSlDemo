@@ -1,4 +1,4 @@
-package com.example;
+package com.example.test;
 
 import java.util.List;
 import java.util.Properties;

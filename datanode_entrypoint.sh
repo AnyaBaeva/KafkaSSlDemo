@@ -1,10 +1,9 @@
-    #!/bin/bash
-    export TERM=xterm
-    set -e
+#!/bin/bash
+set -e
 
 
-    mkdir -p /usr/local/hadoop/hdfs/datanode
-    chmod -R 777 /usr/local/hadoop/hdfs/datanode
+mkdir -p /usr/local/hadoop/hdfs/datanode
+chmod -R 777 /usr/local/hadoop/hdfs/datanode
 
 
-    exec "$@"
+exec "$@"
