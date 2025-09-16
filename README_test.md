@@ -864,3 +864,51 @@ docker-compose up -d mirror-maker
 
 # Проверить логи
 docker-compose logs -f mirror-maker
+
+
+
+
+#Вот команды для проверки работы HDFS в PowerShell:
+
+1. Проверка статуса Hadoop сервисов
+   powershell
+# Проверить статус namenode
+docker exec -it hadoop-namenode hdfs dfsadmin -report
+
+# Проверить статус datanodes
+docker exec -it hadoop-namenode hdfs dfsadmin -report | Select-String "Datanodes available:"
+
+# Проверить общее состояние HDFS
+docker exec -it hadoop-namenode hdfs fsck / -files -blocks
+2. Проверка файловой системы HDFS
+   powershell
+# Посмотреть корневую директорию HDFS
+docker exec -it hadoop-namenode hdfs dfs -ls /
+
+# Посмотреть директорию topics (где Kafka Connect сохраняет данные)
+docker exec -it hadoop-namenode hdfs dfs -ls /topics
+
+# Посмотреть конкретную тему (например, products)
+docker exec -it hadoop-namenode hdfs dfs -ls /topics/products
+
+# Рекурсивный просмотр всех файлов в теме
+docker exec -it hadoop-namenode hdfs dfs -ls -R /topics/products
+3. Проверка содержимого файлов в HDFS
+   powershell
+# Посмотреть содержимое первого файла в теме products
+$firstFile = docker exec -it hadoop-namenode hdfs dfs -ls /topics/products | Select-Object -First 1 | ForEach-Object { $_.Split()[-1] }
+docker exec -it hadoop-namenode hdfs dfs -cat $firstFile
+
+# Посмотреть первые 10 строк любого файла
+docker exec -it hadoop-namenode hdfs dfs -cat /topics/products/* | Select-Object -First 10
+
+# Посмотреть количество файлов в директории
+docker exec -it hadoop-namenode hdfs dfs -count /topics/products
+4. Мониторинг в реальном времени
+   powershell
+# Мониторить появление новых файлов (запустить в отдельном окне)
+while ($true) {
+$fileCount = docker exec -it hadoop-namenode hdfs dfs -count /topics/products | ForEach-Object { $_.Split()[1] }
+Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Files in HDFS: $fileCount"
+Start-Sleep -Seconds 5
+}
