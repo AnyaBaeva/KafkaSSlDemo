@@ -1,0 +1,23 @@
+FROM confluentinc/cp-kafka-connect:7.7.1
+
+# Установка HDFS коннектора
+RUN confluent-hub install --no-prompt confluentinc/kafka-connect-hdfs:latest
+
+# Установка JDBC коннектора
+#RUN confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.8.4
+
+# Копирование конфигурационных файлов Hadoop
+COPY config/core-site.xml /etc/hadoop/conf/
+COPY config/hdfs-site.xml /etc/hadoop/conf/
+
+# Копирование JMX Exporter
+COPY jmx_prometheus_javaagent-0.15.0.jar /opt/
+COPY ../kafka-connect.yml /opt/
+
+# Создание директории для плагинов
+RUN mkdir -p /usr/share/confluent-hub-components
+
+# Создаем директорию и даем права appuser
+RUN mkdir -p /data/output && \
+    chown -R appuser:appuser /data/output && \
+    chmod -R 755 /data/output
