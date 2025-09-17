@@ -123,12 +123,14 @@ docker exec -it kafka-0 kafka-acls `
    --operation All --group file-sink-group
 
 # Регистрация HDFS Sink Connector JsonFormat
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
-    Write-Host "Старый коннектор удален"
-} catch {
-    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-}
+# try {
+#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
+#     Write-Host "Старый коннектор удален"
+# } catch {
+#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+# }
+
+Start-Sleep -Seconds 60
 
 $connectorConfig = @{
     "name" = "hdfs-sink-json-connector"
@@ -137,7 +139,6 @@ $connectorConfig = @{
         "tasks.max" = "1"
         "topics" = "products"
         "hdfs.url" = "hdfs://namenode:9000"
-        "flush.size" = "1000"
 
         "format.class" = "io.confluent.connect.hdfs3.json.JsonFormat"
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
@@ -153,8 +154,9 @@ $connectorConfig = @{
         "hdfs.authentication.kerberos" = "false"
         "topics.dir" = "/data"
         "logs.dir" = "/logs"
-
-        "rotate.interval.ms" = "3600000"
+        "flush.size" = "3"
+        "rotate.interval.ms" = "30000"
+        "rotate.schedule.interval.ms" = "60000"
     }
 } | ConvertTo-Json -Depth 10
 
@@ -175,12 +177,12 @@ Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -Conten
 # docker exec hadoop-namenode hdfs dfs -chmod -R 777 /
 
 # Создать коннектор FileStreamSink
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
-    Write-Host "Старый коннектор удален"
-} catch {
-    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-}
+# try {
+#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
+#     Write-Host "Старый коннектор удален"
+# } catch {
+#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+# }
 
 
 $body = @{

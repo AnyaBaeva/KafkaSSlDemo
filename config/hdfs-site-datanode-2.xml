@@ -2,7 +2,7 @@
 <configuration>
     <property>
         <name>dfs.datanode.data.dir</name>
-        <value>file:/opt/hadoop/data/dataNode</value>
+        <value>file:/usr/local/hadoop/hdfs/datanode</value>
     </property>
     <property>
         <name>dfs.datanode.hostname</name>

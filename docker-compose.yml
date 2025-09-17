@@ -334,7 +334,6 @@ services:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-namenode.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./namenode_entrypoint.sh:/namenode_entrypoint.sh
-      - hadoop_namenode_data:/opt/hadoop/data/nameNode
     entrypoint: ["/bin/bash", "/namenode_entrypoint.sh"]
     command: ["hdfs", "namenode"]
     networks:
@@ -362,7 +361,6 @@ services:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-1.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-      - hadoop_datanode_data_1:/opt/hadoop/data/dataNode
     entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
     command: ["hdfs", "datanode"]
     networks:
@@ -390,7 +388,6 @@ services:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-2.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-      - hadoop_datanode_data_2:/opt/hadoop/data/dataNode
     entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
     command: ["hdfs", "datanode"]
     networks:
@@ -418,7 +415,6 @@ services:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-3.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-      - hadoop_datanode_data_3:/opt/hadoop/data/dataNode
     entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
     command: ["hdfs", "datanode"]
     networks:
@@ -605,9 +601,6 @@ volumes:
     driver: local
   pgadmin-data: # Добавьте этот volume
     driver: local
-  kafka-0-destination:
-  kafka-1-destination:
-  kafka-2-destination:
 
 
 networks:
