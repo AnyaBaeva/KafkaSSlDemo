@@ -4,6 +4,20 @@
 # docker-compose up -d
 # # Подождать запуска всех сервисов
 # Start-Sleep -Seconds 120
+
+# Сначала базовые сервисы
+docker-compose up -d zookeeper kafka-0 kafka-1 kafka-2
+
+# Потом зависимые сервисы
+docker-compose up -d schema-registry kafka-ui
+
+# Затем целевой кластер
+docker-compose up -d zookeeper-destination kafka-0-destination etc.
+
+# В конце все остальное
+docker-compose up -d
+
+
 # Создать топики
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic inputJsonStream --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic products --partitions 3 --replication-factor 3
@@ -122,13 +136,114 @@ docker exec -it kafka-0 kafka-acls `
    --add --allow-principal User:admin `
    --operation All --group file-sink-group
 
+#Создайте СХЕМУ для реплики
+$schemaRegistryUrl = "http://localhost:18082"
+$subject = "products-value"
+
+$schema = @'
+{
+"type": "record",
+"name": "Product",
+"namespace": "com.example.avro",
+"fields": [
+{"name": "product_id", "type": "string"},
+{"name": "name", "type": "string"},
+{"name": "description", "type": "string"},
+{
+"name": "price",
+"type": {
+"type": "record",
+"name": "Price",
+"fields": [
+{"name": "amount", "type": "double"},
+{"name": "currency", "type": "string"}
+]
+}
+},
+{"name": "category", "type": "string"},
+{"name": "brand", "type": "string"},
+{
+"name": "stock",
+"type": {
+"type": "record",
+"name": "Stock",
+"fields": [
+{"name": "available", "type": "int"},
+{"name": "reserved", "type": "int"}
+]
+}
+},
+{"name": "sku", "type": "string"},
+{
+"name": "tags",
+"type": {
+"type": "array",
+"items": "string"
+}
+},
+{
+"name": "images",
+"type": {
+"type": "array",
+"items": {
+"type": "record",
+"name": "Image",
+"fields": [
+{"name": "url", "type": "string"},
+{"name": "alt", "type": "string"}
+]
+}
+}
+},
+{
+"name": "specifications",
+"type": {
+"type": "record",
+"name": "Specifications",
+"fields": [
+{"name": "weight", "type": "string"},
+{"name": "dimensions", "type": "string"},
+{"name": "battery_life", "type": "string"},
+{"name": "water_resistance", "type": "string"}
+]
+}
+},
+{"name": "created_at", "type": "string"},
+{"name": "updated_at", "type": "string"},
+{"name": "index", "type": "string"},
+{"name": "store_id", "type": "string"}
+]
+}
+'@
+
+$schemaData = @{
+schema = $schema
+} | ConvertTo-Json
+
+$headers = @{
+"Content-Type" = "application/vnd.schemaregistry.v1+json"
+}
+
+try {
+$response = Invoke-RestMethod `
+-Uri "$schemaRegistryUrl/subjects/$subject/versions" `
+-Method Post `
+-Body $schemaData `
+-Headers $headers
+Write-Output "Схема зарегистрирована для реплики. ID: $response"
+}
+catch {
+Write-Output "Ошибка регистрации схемы: $($_.Exception.Message)"
+}
+
+
 # Регистрация HDFS Sink Connector JsonFormat
-# try {
-#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
-#     Write-Host "Старый коннектор удален"
-# } catch {
-#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-# }
+try {
+    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
+    Write-Host "Старый коннектор удален"
+} catch {
+    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+}
 
 Start-Sleep -Seconds 60
 
@@ -146,7 +261,7 @@ $connectorConfig = @{
         "value.converter" = "org.apache.kafka.connect.json.JsonConverter"
         "value.converter.schemas.enable" = "false"
 
-        "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092"
+        "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9093,PLAINTEXT://kafka-2-destination:9094"
         "schema.compatibility" = "NONE"
         "errors.tolerance" = "all"
         "errors.log.enable" = "true"

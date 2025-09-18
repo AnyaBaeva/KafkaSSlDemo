@@ -197,11 +197,13 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     networks:
       - kafka-connect-network
-
   kafka-0-destination:
     image: confluentinc/cp-kafka:7.4.4
     container_name: kafka-0-destination
     hostname: kafka-0-destination
+    ports:
+      - "49092:29092"  # PLAINTEXT_HOST → внешний доступ
+      - "9092:9092"    # PLAINTEXT → внутренний доступ
     depends_on:
       - zookeeper-destination
     environment:
@@ -209,7 +211,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_BROKER_ID: 1
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9092
+      # Два listener'а с разными портами
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      # Соответствующие advertised listeners
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT_HOST://localhost:49092
+      # Все имена listener'ов должны быть отображены
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      # Межброкерное взаимодействие через PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
 
@@ -217,6 +226,9 @@ services:
     image: confluentinc/cp-kafka:7.4.4
     container_name: kafka-1-destination
     hostname: kafka-1-destination
+    ports:
+      - "59092:29092"  # Хост:59092 → Контейнер:29092 (PLAINTEXT_HOST)
+      - "9093:9093"    # Хост:9093 → Контейнер:9093 (PLAINTEXT) :cite[1]
     depends_on:
       - zookeeper-destination
     environment:
@@ -224,7 +236,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_BROKER_ID: 2
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1-destination:9092
+      # Два listener'а с разными портами внутри контейнера
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      # Соответствующие advertised listeners
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1-destination:9093,PLAINTEXT_HOST://localhost:59092
+      # Все имена listener'ов должны быть отображены
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      # Межброкерное взаимодействие через PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
 
@@ -232,6 +251,9 @@ services:
     image: confluentinc/cp-kafka:7.4.4
     container_name: kafka-2-destination
     hostname: kafka-2-destination
+    ports:
+      - "59093:29092"  # Хост:59093 → Контейнер:29092 (PLAINTEXT_HOST)
+      - "9094:9094"    # Хост:9094 → Контейнер:9094 (PLAINTEXT) :cite[1]
     depends_on:
       - zookeeper-destination
     environment:
@@ -239,7 +261,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_BROKER_ID: 3
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2-destination:9092
+      # Два listener'а с разными портами внутри контейнера
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,PLAINTEXT_HOST://0.0.0.0:29092
+      # Соответствующие advertised listeners
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2-destination:9094,PLAINTEXT_HOST://localhost:59093
+      # Все имена listener'ов должны быть отображены
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      # Межброкерное взаимодействие через PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
 
@@ -315,7 +344,7 @@ services:
 
   # --- HADOOP CLUSTER ---
   hadoop-namenode:
-    image: apache/hadoop:3.4.1
+    image: apache/hadoop:3.3.6
     container_name: hadoop-namenode
     hostname: hadoop-namenode
     user: "root"
@@ -340,83 +369,59 @@ services:
       - kafka-connect-network
 
   hadoop-datanode-1:
-    image: apache/hadoop:3.4.1
+    image: apache/hadoop:3.3.6
     container_name: hadoop-datanode-1
     hostname: hadoop-datanode-1
     user: "root"
     restart: always
     platform: linux/amd64
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: "2g"
-    shm_size: 10G
-    depends_on:
-      - hadoop-namenode
     ports:
-      - "9864:9864"  # HTTP-порт для Web UI DataNode №1
-      - "9970:9970"  # RPC порт для запросов от NameNode
+      - "10000:9864"  # Web UI
+      - "10001:9866"  # Data transfer
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-1.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
-    command: ["hdfs", "datanode"]
+    entrypoint: [ "/bin/bash", "/datanode_entrypoint.sh" ]
+    command: [ "hdfs", "datanode" ]
     networks:
       - kafka-connect-network
 
   hadoop-datanode-2:
-    image: apache/hadoop:3.4.1
+    image: apache/hadoop:3.3.6
     container_name: hadoop-datanode-2
     hostname: hadoop-datanode-2
     user: "root"
     restart: always
     platform: linux/amd64
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: "2g"
-    shm_size: 10G
-    depends_on:
-      - hadoop-namenode
     ports:
-      - "9865:9865"  # HTTP-порт для Web UI DataNode №1
-      - "9971:9971"  # RPC порт для запросов от NameNode
+      - "10002:9865"  # Web UI
+      - "10003:9866"  # Data transfer
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-2.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
-    command: ["hdfs", "datanode"]
+    entrypoint: [ "/bin/bash", "/datanode_entrypoint.sh" ]
+    command: [ "hdfs", "datanode" ]
     networks:
       - kafka-connect-network
 
   hadoop-datanode-3:
-    image: apache/hadoop:3.4.1
+    image: apache/hadoop:3.3.6
     container_name: hadoop-datanode-3
     hostname: hadoop-datanode-3
     user: "root"
     restart: always
     platform: linux/amd64
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: "2g"
-    shm_size: 10G
-    depends_on:
-      - hadoop-namenode
     ports:
-      - "9866:9866"  # HTTP-порт для Web UI DataNode №1
-      - "9972:9972"  # RPC порт для запросов от NameNode
+      - "10004:9868"  # Web UI
+      - "10005:9866"  # Data transfer
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-3.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
       - ./datanode_entrypoint.sh:/datanode_entrypoint.sh
-    entrypoint: ["/bin/bash", "/datanode_entrypoint.sh"]
-    command: ["hdfs", "datanode"]
+    entrypoint: [ "/bin/bash", "/datanode_entrypoint.sh" ]
+    command: [ "hdfs", "datanode" ]
     networks:
       - kafka-connect-network
 

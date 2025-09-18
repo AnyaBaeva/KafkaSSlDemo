@@ -22,8 +22,9 @@ public class KafkaHdfsSparkConsumer {
     public static void main(String[] args) {
         Properties props = new Properties();
 //        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
-//        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "172.28.0.3:9092"); //kafka-0-destination
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "172.28.0.3:19092"); //kafka-0-destination
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                "kafka-0-destination:9092,kafka-1-destination:9093,kafka-2-destination:9094,localhost:49092,localhost:59092,localhost:59093"); //kafka-0-destination
+//        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:49092"); //kafka-0-destination
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "hadoop-spark-consumer-group1");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
@@ -39,7 +40,7 @@ public class KafkaHdfsSparkConsumer {
         Configuration conf = new Configuration();
         conf.set("fs.defaultFS", hdfsUri);
 
-
+        System.setProperty("hadoop.home.dir", "C:\\hadoop");
         try (FileSystem hdfs = FileSystem.get(new URI(hdfsUri), conf, "root")) {
             while (true) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));

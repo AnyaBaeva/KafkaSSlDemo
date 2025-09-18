@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
-mkdir -p /usr/local/hadoop/hdfs/namenode
-chmod -R 777 /usr/local/hadoop/hdfs/namenode
-hdfs namenode -format
+# Форматирование NameNode при первом запуске
+if [ ! -d /tmp/hadoop/namenode ]; then
+    echo "Formatting NameNode..."
+    hdfs namenode -format -force
+fi
 exec "$@"

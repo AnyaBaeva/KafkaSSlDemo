@@ -28,6 +28,30 @@
 - **HDFS UI**: [http://localhost:9870](http://localhost:9870)
 - **Spark UI**: [http://localhost:8081](http://localhost:8081)
 ```
+#Hadoop
+##Для Hadoop на Windows:
+1. Установите переменную окружения HADOOP_HOME:
+cmd
+```
+setx HADOOP_HOME "C:\hadoop"
+```
+2. Убедитесь, что путь ведет к корневой директории Hadoop (не включая \bin) .
+3. Скачайте и установите winutils.exe:
+4. Скачайте подходящую версию winutils.exe
+5. Поместите его в директорию %HADOOP_HOME%\bin\
+6. Убедитесь, что архитектура winutils.exe соответствует вашей системе (x64 или x86)
+7. Установите свойство в коде:
+java
+```
+System.setProperty("hadoop.home.dir", "C:\\hadoop");
+```
+Добавьте эту строку в начало вашего Java-кода перед любыми операциями с Hadoop .
+Проверьте установку:
+cmd
+```
+echo %HADOOP_HOME%
+dir %HADOOP_HOME%\bin\winutils.exe
+```
 
 #SPARK 
 (ВРЕМЕННО ЗАКОММЕНТИРОВАН, НЕТ МЕСТА, КОНФИГУРАЦИЯ ВЕРНАЯ, НА КОД НЕДОСТАТОЧНО РАЗРЕШЕНИЙ)
