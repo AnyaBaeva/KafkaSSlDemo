@@ -1,11 +1,11 @@
 <configuration>
     <property>
         <name>dfs.datanode.http.address</name>
-        <value>0.0.0.0:9864</value>
+        <value>0.0.0.0:9863</value>  <!-- Web UI порт -->
     </property>
     <property>
         <name>dfs.datanode.address</name>
-        <value>0.0.0.0:9866</value>
+        <value>0.0.0.0:9866</value>  <!-- Data transfer порт -->
     </property>
     <property>
         <name>dfs.datanode.data.dir</name>

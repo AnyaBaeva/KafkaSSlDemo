@@ -376,8 +376,8 @@ services:
     restart: always
     platform: linux/amd64
     ports:
-      - "10000:9864"  # Web UI
-      - "10001:9866"  # Data transfer
+      - "9863:9863"  # Web UI порт для DataNode-1 :cite[10]
+      - "9866:9866"  # Data transfer порт для DataNode-1 :cite[10]
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-1.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
@@ -395,8 +395,8 @@ services:
     restart: always
     platform: linux/amd64
     ports:
-      - "10002:9865"  # Web UI
-      - "10003:9866"  # Data transfer
+      - "9865:9865"  # Web UI порт для DataNode-2 :cite[10]
+      - "9867:9867"  # Data transfer порт для DataNode-2 :cite[10]
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-2.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
@@ -414,8 +414,8 @@ services:
     restart: always
     platform: linux/amd64
     ports:
-      - "10004:9868"  # Web UI
-      - "10005:9866"  # Data transfer
+      - "9864:9864"  # Web UI порт для DataNode-3 :cite[10]
+      - "9868:9868"  # Data transfer порт для DataNode-3 :cite[10]
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-3.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml
