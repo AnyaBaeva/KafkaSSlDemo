@@ -5,7 +5,7 @@
     </property>
     <property>
         <name>dfs.datanode.address</name>
-        <value>0.0.0.0:9867</value>  <!-- Data transfer порт -->
+        <value>0.0.0.0:9871</value>  <!-- Data transfer порт -->
     </property>
     <property>
         <name>dfs.datanode.data.dir</name>

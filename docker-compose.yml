@@ -396,7 +396,7 @@ services:
     platform: linux/amd64
     ports:
       - "9865:9865"  # Web UI порт для DataNode-2 :cite[10]
-      - "9867:9867"  # Data transfer порт для DataNode-2 :cite[10]
+      - "9871:9871"  # Data transfer порт для DataNode-2 :cite[10]
     volumes:
       - ./config/core-site.xml:/opt/hadoop/etc/hadoop/core-site.xml
       - ./config/hdfs-site-datanode-2.xml:/opt/hadoop/etc/hadoop/hdfs-site.xml

@@ -96,3 +96,10 @@ http://localhost:9876/metrics
 # Grafana
 1. Для просмотра метрик запустите Grafana (login/pass admin/admin) **http://localhost:3000**
 2. Импортируйте файл с настройками **./KafkaDebezium/grafana/dashboards/connect.json**
+
+
+#Telegramm
+kafka_shop_control
+@GrafanaShopBot
+User id: 8490340379
+8490340379:AAFBOG-WZeQE7ft761riJH7AbFTT4FCVqno
