@@ -1,7 +1,6 @@
 FROM confluentinc/cp-kafka-connect:7.7.1
-
 # Установка HDFS коннектора
-RUN confluent-hub install --no-prompt confluentinc/kafka-connect-hdfs:latest
+RUN #confluent-hub install --no-prompt confluentinc/kafka-connect-hdfs:latest
 
 # Установка JDBC коннектора
 #RUN confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.8.4

@@ -346,6 +346,10 @@ services:
   hadoop-namenode:
     image: apache/hadoop:3.3.6
     container_name: hadoop-namenode
+    environment:
+      - HADOOP_HEAPSIZE=2048  # Увеличьте с стандартных 1024MB до 2048MB или больше
+      - HADOOP_NAMENODE_OPTS=-Xmx2048m -Xms2048m
+      - HADOOP_OPTS=-XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Xms2048m -Xmx2048m
     hostname: hadoop-namenode
     user: "root"
     restart: always
@@ -427,7 +431,9 @@ services:
 
   # --- KAFKA CONNECT с HDFS SINK ---
   kafka-connect:
-    image: confluentinc/cp-kafka-connect:7.4.4
+    image: confluentinc/cp-kafka-connect:7.7.1
+    extra_hosts:
+      - "namenode:172.19.0.8"
     build:
       context: .
       dockerfile: Dockerfile-kafka-connect
@@ -483,14 +489,13 @@ services:
       CONNECT_REST_PORT: 8083
       CONNECT_HTTP_REQUEST_TIMEOUT_MS: 120000
       HADOOP_CONF_DIR: /etc/hadoop/conf
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/java/kafka"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors"
     volumes:
       - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
       - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./kafka-0-creds:/etc/kafka/secrets:ro
-      - ./confluent-hub-components:/usr/share/confluent-hub-components
-      - ./confluent-hub-components/FileStreamSinkConnector:/usr/share/confluent-hub-components/FileStreamSinkConnector
       - ./connector-output:/data/output
+      - ./confluent-hub-components:/usr/share/confluent-hub-components
       - ./kafka-connect.yml:/opt/kafka-connect.yml:ro  # Монтируем конфиг JMX Exporter
       - ./jmx_prometheus_javaagent-0.15.0.jar:/opt/jmx_prometheus_javaagent-0.15.0.jar:ro # Монтируем JAR агента
     networks:

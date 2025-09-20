@@ -30,111 +30,123 @@ docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kaf
 docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic response --partitions 3 --replication-factor 1
 docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic userQuery --partitions 3 --replication-factor 1
 # Выдать права
-# 1. Права на создание и управление всеми топиками
-docker exec kafka-0 kafka-acls `
---bootstrap-server kafka-0:9092 `
---add `
---allow-principal User:admin `
---operation All `
---topic '*' `
---command-config /etc/kafka/secrets/admin.properties
-
-# 2. Права на работу с группами потребителей
-docker exec kafka-0 kafka-acls `
---bootstrap-server kafka-0:9092 `
---add `
---allow-principal User:admin `
---operation All `
---group '*' `
---command-config /etc/kafka/secrets/admin.properties
-
-# 3. Права на управление кластером
-docker exec kafka-0 kafka-acls `
---bootstrap-server kafka-0:9092 `
---add `
---allow-principal User:admin `
---operation All `
---cluster `
---command-config /etc/kafka/secrets/admin.properties
-
-# 4. Права на доступ к транзакциям
-docker exec kafka-0 kafka-acls `
---bootstrap-server kafka-0:9092 `
---add `
---allow-principal User:admin `
---operation All `
---transactional-id '*' `
---command-config /etc/kafka/secrets/admin.properties
-
-# Права для consumer
 docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:consumer `
-   --operation Read --topic products
+  --bootstrap-server kafka-0:9092 `
+  --command-config /etc/kafka/secrets/admin.properties `
+  --add `
+  --allow-principal User:admin `
+  --operation All `
+  --cluster `
+  --topic "*" `
+  --group "*" `
+  --transactional-id "*" `
+  --delegation-token "*"
 
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:consumer `
-   --operation Read --group consumer-group
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:consumer `
-   --operation Describe --topic products
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:consumer `
-   --operation Describe --group consumer-group
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:consumer `
-   --operation Read --transactional-id "*"
-
-# Права для admin
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --group connect-file-sink-products
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --topic products
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --transactional-id "*"
-
-# Права для connect
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:connect `
-   --operation All --group connect-file-sink-products
-
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:connect `
-   --operation All --topic products
-
-# Права для группы на всех брокерах
-docker exec -it kafka-0 kafka-acls `
-   --bootstrap-server kafka-0:9092 `
-   --command-config /etc/kafka/secrets/admin.properties `
-   --add --allow-principal User:admin `
-   --operation All --group file-sink-group
+# # 1. Права на создание и управление всеми топиками
+# docker exec kafka-0 kafka-acls `
+# --bootstrap-server kafka-0:9092 `
+# --add `
+# --allow-principal User:admin `
+# --operation All `
+# --topic '*' `
+# --command-config /etc/kafka/secrets/admin.properties
+#
+# # 2. Права на работу с группами потребителей
+# docker exec kafka-0 kafka-acls `
+# --bootstrap-server kafka-0:9092 `
+# --add `
+# --allow-principal User:admin `
+# --operation All `
+# --group '*' `
+# --command-config /etc/kafka/secrets/admin.properties
+#
+# # 3. Права на управление кластером
+# docker exec kafka-0 kafka-acls `
+# --bootstrap-server kafka-0:9092 `
+# --add `
+# --allow-principal User:admin `
+# --operation All `
+# --cluster `
+# --command-config /etc/kafka/secrets/admin.properties
+#
+# # 4. Права на доступ к транзакциям
+# docker exec kafka-0 kafka-acls `
+# --bootstrap-server kafka-0:9092 `
+# --add `
+# --allow-principal User:admin `
+# --operation All `
+# --transactional-id '*' `
+# --command-config /etc/kafka/secrets/admin.properties
+#
+# # Права для consumer
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:consumer `
+#    --operation Read --topic products
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:consumer `
+#    --operation Read --group consumer-group
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:consumer `
+#    --operation Describe --topic products
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:consumer `
+#    --operation Describe --group consumer-group
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:consumer `
+#    --operation Read --transactional-id "*"
+#
+# # Права для admin
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:admin `
+#    --operation All --group connect-file-sink-products
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:admin `
+#    --operation All --topic products
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:admin `
+#    --operation All --transactional-id "*"
+#
+# # Права для connect
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:connect `
+#    --operation All --group connect-file-sink-products
+#
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:connect `
+#    --operation All --topic products
+#
+# # Права для группы на всех брокерах
+# docker exec -it kafka-0 kafka-acls `
+#    --bootstrap-server kafka-0:9092 `
+#    --command-config /etc/kafka/secrets/admin.properties `
+#    --add --allow-principal User:admin `
+#    --operation All --group file-sink-group
 
 #Создайте СХЕМУ для реплики
 $schemaRegistryUrl = "http://localhost:18082"
@@ -247,15 +259,16 @@ try {
 
 Start-Sleep -Seconds 60
 
+
 $connectorConfig = @{
     "name" = "hdfs-sink-json-connector"
     "config" = @{
-        "connector.class" = "io.confluent.connect.hdfs3.Hdfs3SinkConnector"
+        "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
         "tasks.max" = "1"
         "topics" = "products"
         "hdfs.url" = "hdfs://namenode:9000"
 
-        "format.class" = "io.confluent.connect.hdfs3.json.JsonFormat"
+        "format.class" = "io.confluent.connect.hdfs.json.JsonFormat"
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
         "key.converter.schemas.enable" = "false"
         "value.converter" = "org.apache.kafka.connect.json.JsonConverter"
@@ -270,13 +283,21 @@ $connectorConfig = @{
         "topics.dir" = "/data"
         "logs.dir" = "/logs"
         "flush.size" = "3"
-        "rotate.interval.ms" = "30000"
-        "rotate.schedule.interval.ms" = "60000"
     }
 } | ConvertTo-Json -Depth 10
 
 # Отправка конфигурации в Kafka Connect REST API
 Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
+
+# Проверить статус коннектора
+Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector/status" | ConvertTo-Json
+# отчет
+# PS C:\projects\KafkaSSlDemo> docker exec hadoop-namenode hdfs dfsadmin -report
+# >> docker logs hadoop-namenode --tail 20 | findstr /i "pause gc memory"
+
+#глубокий анализ логов!!!
+# docker logs kafka-connect | findstr /i "error exception fail"
+# docker logs hadoop-namenode | findstr /i "error exception fail"
 
 # # Проверка существующих директорий
 # docker exec hadoop-namenode hdfs dfs -ls /
@@ -291,13 +312,13 @@ Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -Conten
 # права, если надо
 # docker exec hadoop-namenode hdfs dfs -chmod -R 777 /
 
-# Создать коннектор FileStreamSink
-# try {
-#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
-#     Write-Host "Старый коннектор удален"
-# } catch {
-#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-# }
+Создать коннектор FileStreamSink
+try {
+    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
+    Write-Host "Старый коннектор удален"
+} catch {
+    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+}
 
 
 $body = @{
