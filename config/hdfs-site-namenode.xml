@@ -1,22 +1,11 @@
+<?xml version="1.0"?>
 <configuration>
-    <property>
-        <name>dfs.namenode.rpc-address</name>
-        <value>hadoop-namenode:9000</value>
-    </property>
-    <property>
-        <name>dfs.namenode.http-address</name>
-        <value>hadoop-namenode:9870</value>
-    </property>
-    <property>
-        <name>dfs.namenode.name.dir</name>
-        <value>/opt/hadoop/namenode</value>
-    </property>
     <property>
         <name>dfs.replication</name>
         <value>3</value>
     </property>
     <property>
-        <name>dfs.permissions.enabled</name>
-        <value>false</value>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:/usr/local/hadoop/hdfs/namenode</value>
     </property>
 </configuration>

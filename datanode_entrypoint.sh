@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-# Создание директории для DataNode
-mkdir -p /tmp/hadoop/datanode
-chmod -R 755 /tmp/hadoop
+mkdir -p /usr/local/hadoop/hdfs/datanode
+chmod -R 777 /usr/local/hadoop/hdfs/datanode
 exec "$@"

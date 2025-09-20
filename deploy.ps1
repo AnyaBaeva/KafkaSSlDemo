@@ -259,7 +259,6 @@ try {
 
 Start-Sleep -Seconds 60
 
-
 $connectorConfig = @{
     "name" = "hdfs-sink-json-connector"
     "config" = @{
@@ -268,10 +267,13 @@ $connectorConfig = @{
         "topics" = "products"
         "hdfs.url" = "hdfs://namenode:9000"
 
-        "format.class" = "io.confluent.connect.hdfs.json.JsonFormat"
+        # Используем StringFormat для записи данных как строк
+        "format.class" = "io.confluent.connect.hdfs.string.StringFormat"
+
+        # Конвертеры для чтения данных из Kafka
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
         "key.converter.schemas.enable" = "false"
-        "value.converter" = "org.apache.kafka.connect.json.JsonConverter"
+        "value.converter" = "org.apache.kafka.connect.storage.StringConverter"  # Изменено на StringConverter
         "value.converter.schemas.enable" = "false"
 
         "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9093,PLAINTEXT://kafka-2-destination:9094"
@@ -283,17 +285,21 @@ $connectorConfig = @{
         "topics.dir" = "/data"
         "logs.dir" = "/logs"
         "flush.size" = "3"
+        "rotate.interval.ms" = "30000"
+        "rotate.schedule.interval.ms" = "60000"
+        "timezone" = "Europe/Moscow"  # Обязательно при использовании rotate.schedule.interval.ms
     }
 } | ConvertTo-Json -Depth 10
 
-# Отправка конфигурации в Kafka Connect REST API
+# Отправка обновленной конфигурации в Kafka Connect REST API
 Invoke-RestMethod -Uri "http://localhost:18083/connectors/" -Method Post -ContentType "application/json" -Body $connectorConfig
 
 # Проверить статус коннектора
 Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector/status" | ConvertTo-Json
 # отчет
-# PS C:\projects\KafkaSSlDemo> docker exec hadoop-namenode hdfs dfsadmin -report
-# >> docker logs hadoop-namenode --tail 20 | findstr /i "pause gc memory"
+# PS C:\projects\KafkaSSlDemo>
+# docker exec hadoop-namenode hdfs dfsadmin -report
+# docker logs hadoop-namenode --tail 20 | findstr /i "pause gc memory"
 
 #глубокий анализ логов!!!
 # docker logs kafka-connect | findstr /i "error exception fail"

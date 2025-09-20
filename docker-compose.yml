@@ -491,8 +491,6 @@ services:
       HADOOP_CONF_DIR: /etc/hadoop/conf
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors"
     volumes:
-      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
-      - ./config/hdfs-site.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./kafka-0-creds:/etc/kafka/secrets:ro
       - ./connector-output:/data/output
       - ./confluent-hub-components:/usr/share/confluent-hub-components
@@ -517,8 +515,6 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
       - ./spark-apps:/opt/spark-apps
       - ./ssl/client:/kafka-client-creds:ro
@@ -543,8 +539,6 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
     depends_on:
       - spark-master
@@ -565,8 +559,6 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
-      - ./config/core-site.xml:/opt/bitnami/spark/conf/core-site.xml
-      - ./config/hdfs-site.xml:/opt/bitnami/spark/conf/hdfs-site.xml
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
       - ./ssl/client:/kafka-client-creds:ro
     depends_on:
@@ -611,7 +603,26 @@ volumes:
     driver: local
   pgadmin-data: # Добавьте этот volume
     driver: local
+  datanode1-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /path/on/host/datanode1
 
+  datanode2-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /path/on/host/datanode2
+
+  datanode3-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /path/on/host/datanode3
 
 networks:
   kafka-connect-network:
