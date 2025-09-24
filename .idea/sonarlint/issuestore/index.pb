@@ -56,8 +56,6 @@ D
 config/core-site.xml,b\2\b2f6db7b96ed646b9425d587190e6e4ad2b310f4
 T
 $connector-output/products-final.json,8\0\809edae646d24e13ad145a027f7ac2f8760232d0
-I
-docker-compose_spark.yaml,d\a\da1fc9f4a2448b8ed6ad5e7ec4b607a430930367
 O
 config/hdfs-site-datanode-2.xml,c\8\c83a0d0ec77273eacdb67886f41d9e5df2c7ae4e
 O

@@ -40,8 +40,6 @@ c
 3src/main/java/com/example/test/ProductProducer.java,3\2\32b032cc346f109553150a83c63c3ce7d450b942
 K
 postgres/custom-config.conf,1\e\1e929cadb9361ed5b6c8ff35c0815e57528ad9c4
-I
-docker-compose_spark.yaml,d\a\da1fc9f4a2448b8ed6ad5e7ec4b607a430930367
 A
 pg_hba_trust.conf,c\f\cf9df3117871bbe5a536b555f98ea5db185b8477
 T
