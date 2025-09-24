@@ -193,31 +193,28 @@ services:
     container_name: zookeeper-destination
     hostname: zookeeper-destination
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_CLIENT_PORT: 2182
       ZOOKEEPER_TICK_TIME: 2000
     networks:
       - kafka-connect-network
+
   kafka-0-destination:
     image: confluentinc/cp-kafka:7.4.4
     container_name: kafka-0-destination
     hostname: kafka-0-destination
     ports:
-      - "49092:29092"  # PLAINTEXT_HOST → внешний доступ
-      - "9092:9092"    # PLAINTEXT → внутренний доступ
+      - "49092:29093"  # PLAINTEXT_HOST → внешний доступ
+      - "9095:9095"    # PLAINTEXT → внутренний доступ
     depends_on:
       - zookeeper-destination
     environment:
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2182'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_BROKER_ID: 1
-      # Два listener'а с разными портами
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      # Соответствующие advertised listeners
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT_HOST://localhost:49092
-      # Все имена listener'ов должны быть отображены
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9095,PLAINTEXT_HOST://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-0-destination:9095,PLAINTEXT_HOST://localhost:49092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      # Межброкерное взаимодействие через PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
@@ -227,22 +224,18 @@ services:
     container_name: kafka-1-destination
     hostname: kafka-1-destination
     ports:
-      - "59092:29092"  # Хост:59092 → Контейнер:29092 (PLAINTEXT_HOST)
+      - "59092:29093"  # Хост:59092 → Контейнер:29093 (PLAINTEXT_HOST)
       - "9093:9093"    # Хост:9093 → Контейнер:9093 (PLAINTEXT) :cite[1]
     depends_on:
       - zookeeper-destination
     environment:
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2182'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_BROKER_ID: 2
-      # Два listener'а с разными портами внутри контейнера
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
-      # Соответствующие advertised listeners
+      KAFKA_BROKER_ID: 4
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1-destination:9093,PLAINTEXT_HOST://localhost:59092
-      # Все имена listener'ов должны быть отображены
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      # Межброкерное взаимодействие через PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
@@ -252,22 +245,18 @@ services:
     container_name: kafka-2-destination
     hostname: kafka-2-destination
     ports:
-      - "59093:29092"  # Хост:59093 → Контейнер:29092 (PLAINTEXT_HOST)
+      - "59093:29093"  # Хост:59093 → Контейнер:29093 (PLAINTEXT_HOST)
       - "9094:9094"    # Хост:9094 → Контейнер:9094 (PLAINTEXT) :cite[1]
     depends_on:
       - zookeeper-destination
     environment:
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2181'
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-destination:2182'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_BROKER_ID: 3
-      # Два listener'а с разными портами внутри контейнера
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,PLAINTEXT_HOST://0.0.0.0:29092
-      # Соответствующие advertised listeners
+      KAFKA_BROKER_ID: 5
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,PLAINTEXT_HOST://0.0.0.0:29093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2-destination:9094,PLAINTEXT_HOST://localhost:59093
-      # Все имена listener'ов должны быть отображены
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      # Межброкерное взаимодействие через PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-connect-network
@@ -281,14 +270,14 @@ services:
       - kafka-1-destination
       - kafka-2-destination
     ports:
-      - "18082:8081"  # Используйте другой порт, чтобы избежать конфликта с основным Schema Registry
+      - "18082:8084"  # Используйте другой порт, чтобы избежать конфликта с основным Schema Registry
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry-destination
       # Подключение к целевому кластеру Kafka
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
       SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT  # Целевой кластер использует PLAINTEXT
       # Дополнительные настройки
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8084
       SCHEMA_REGISTRY_DEBUG: 'true'
       SCHEMA_REGISTRY_KAFKASTORE_INIT_TIMEOUT: 30000
       SCHEMA_REGISTRY_KAFKASTORE_TIMEOUT: 30000
@@ -330,10 +319,11 @@ services:
       - "8082:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: destination-kafka
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-0-destination:9092,kafka-1-destination:9092,kafka-2-destination:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-0-destination:9092,kafka-1-destination:9093,kafka-2-destination:9094
       KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
       # Добавьте конфигурацию для целевого Schema Registry
-      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry-destination:8081
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry-destination:8084
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper-destination:2182
     networks:
       - kafka-connect-network
     depends_on:
@@ -477,12 +467,12 @@ services:
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
       # Настройки для ЦЕЛЕВОГО кластера (HDFS Sink)
-      CONNECT_PRODUCER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9092,PLAINTEXT://kafka-2-destination:9092
+      CONNECT_PRODUCER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9093,PLAINTEXT://kafka-2-destination:9094
       CONNECT_PRODUCER_SECURITY_PROTOCOL: PLAINTEXT
       CONNECT_PRODUCER_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       CONNECT_PRODUCER_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
-      CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
-      CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8081
+      CONNECT_PRODUCER_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8084
+      CONNECT_PRODUCER_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry-destination:8084
 
       KAFKA_OPTS: "-javaagent:/opt/jmx_prometheus_javaagent-0.15.0.jar=9876:/opt/kafka-connect.yml"
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
@@ -491,6 +481,8 @@ services:
       HADOOP_CONF_DIR: /etc/hadoop/conf
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors"
     volumes:
+      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
+      - ./config/hdfs-site-namenode.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./kafka-0-creds:/etc/kafka/secrets:ro
       - ./connector-output:/data/output
       - ./confluent-hub-components:/usr/share/confluent-hub-components
@@ -515,6 +507,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
+      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
+      - ./config/hdfs-site-namenode.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
       - ./spark-apps:/opt/spark-apps
       - ./ssl/client:/kafka-client-creds:ro
@@ -539,6 +533,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
+      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
+      - ./config/hdfs-site-namenode.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
     depends_on:
       - spark-master
@@ -559,6 +555,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
+      - ./config/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
+      - ./config/hdfs-site-namenode.xml:/etc/hadoop/conf/hdfs-site.xml:ro
       - ./config/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
       - ./ssl/client:/kafka-client-creds:ro
     depends_on:
@@ -603,26 +601,6 @@ volumes:
     driver: local
   pgadmin-data: # Добавьте этот volume
     driver: local
-  datanode1-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /path/on/host/datanode1
-
-  datanode2-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /path/on/host/datanode2
-
-  datanode3-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /path/on/host/datanode3
 
 networks:
   kafka-connect-network:

@@ -1,0 +1,8 @@
+
+X	java:S125"<This block of commented-out lines of code should be removed.(®ïøÿ8º½Èµ•3
+\
+java:S6213/":Rename this variable to not match a restricted identifier.(´Å£Ÿıÿÿÿÿ8ºÅµ•3
+F	java:S1061"+Replace this use of System.out by a logger.(©ãÙ:8ŸºÅµ•3
+G	java:S106;"+Replace this use of System.out by a logger.(šŒÏŸ8 ºÅµ•3
+L	java:S106R"+Replace this use of System.out by a logger.(Àã¤ıÿÿÿÿ8±ºÅµ•3
+L	java:S106V"+Replace this use of System.out by a logger.(î®³Çıÿÿÿÿ8´ºÅµ•3

@@ -24,11 +24,11 @@ docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic blockedProducts --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic response --partitions 3 --replication-factor 3
 docker exec -it kafka-0 kafka-topics --create --bootstrap-server kafka-0:9092 --command-config /etc/kafka/secrets/admin.properties --topic userQuery --partitions 3 --replication-factor 3
-docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic inputJsonStream --partitions 3 --replication-factor 1
-docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic products --partitions 3 --replication-factor 1
-docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic blockedProducts --partitions 3 --replication-factor 1
-docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic response --partitions 3 --replication-factor 1
-docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9092 --topic userQuery --partitions 3 --replication-factor 1
+docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9095 --topic inputJsonStream --partitions 3 --replication-factor 1
+docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9095 --topic products --partitions 3 --replication-factor 1
+docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9095 --topic blockedProducts --partitions 3 --replication-factor 1
+docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9095 --topic response --partitions 3 --replication-factor 1
+docker exec -it kafka-0-destination kafka-topics --create --bootstrap-server kafka-0-destination:9095 --topic userQuery --partitions 3 --replication-factor 1
 # Выдать права
 docker exec -it kafka-0 kafka-acls `
   --bootstrap-server kafka-0:9092 `
@@ -41,112 +41,6 @@ docker exec -it kafka-0 kafka-acls `
   --group "*" `
   --transactional-id "*" `
   --delegation-token "*"
-
-# # 1. Права на создание и управление всеми топиками
-# docker exec kafka-0 kafka-acls `
-# --bootstrap-server kafka-0:9092 `
-# --add `
-# --allow-principal User:admin `
-# --operation All `
-# --topic '*' `
-# --command-config /etc/kafka/secrets/admin.properties
-#
-# # 2. Права на работу с группами потребителей
-# docker exec kafka-0 kafka-acls `
-# --bootstrap-server kafka-0:9092 `
-# --add `
-# --allow-principal User:admin `
-# --operation All `
-# --group '*' `
-# --command-config /etc/kafka/secrets/admin.properties
-#
-# # 3. Права на управление кластером
-# docker exec kafka-0 kafka-acls `
-# --bootstrap-server kafka-0:9092 `
-# --add `
-# --allow-principal User:admin `
-# --operation All `
-# --cluster `
-# --command-config /etc/kafka/secrets/admin.properties
-#
-# # 4. Права на доступ к транзакциям
-# docker exec kafka-0 kafka-acls `
-# --bootstrap-server kafka-0:9092 `
-# --add `
-# --allow-principal User:admin `
-# --operation All `
-# --transactional-id '*' `
-# --command-config /etc/kafka/secrets/admin.properties
-#
-# # Права для consumer
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:consumer `
-#    --operation Read --topic products
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:consumer `
-#    --operation Read --group consumer-group
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:consumer `
-#    --operation Describe --topic products
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:consumer `
-#    --operation Describe --group consumer-group
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:consumer `
-#    --operation Read --transactional-id "*"
-#
-# # Права для admin
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:admin `
-#    --operation All --group connect-file-sink-products
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:admin `
-#    --operation All --topic products
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:admin `
-#    --operation All --transactional-id "*"
-#
-# # Права для connect
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:connect `
-#    --operation All --group connect-file-sink-products
-#
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:connect `
-#    --operation All --topic products
-#
-# # Права для группы на всех брокерах
-# docker exec -it kafka-0 kafka-acls `
-#    --bootstrap-server kafka-0:9092 `
-#    --command-config /etc/kafka/secrets/admin.properties `
-#    --add --allow-principal User:admin `
-#    --operation All --group file-sink-group
 
 #Создайте СХЕМУ для реплики
 $schemaRegistryUrl = "http://localhost:18082"
@@ -250,44 +144,45 @@ Write-Output "Ошибка регистрации схемы: $($_.Exception.Mes
 
 
 # Регистрация HDFS Sink Connector JsonFormat
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connector" -Method Delete
-    Write-Host "Старый коннектор удален"
-} catch {
-    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-}
+# try {
+#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-connector1" -Method Delete
+#     Write-Host "Старый коннектор удален"
+# } catch {
+#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+# }
 
 Start-Sleep -Seconds 60
 
 $connectorConfig = @{
-    "name" = "hdfs-sink-json-connector"
+    "name" = "hdfs-sink-connector-final"
     "config" = @{
         "connector.class" = "io.confluent.connect.hdfs.HdfsSinkConnector"
         "tasks.max" = "1"
         "topics" = "products"
-        "hdfs.url" = "hdfs://namenode:9000"
 
-        # Используем StringFormat для записи данных как строк
+        "hdfs.url" = "hdfs://hadoop-namenode:9000"
+
+        "consumer.override.bootstrap.servers" = "kafka-0-destination:9095,kafka-1-destination:9093,kafka-2-destination:9094"
+        "consumer.override.security.protocol" = "PLAINTEXT"
+
         "format.class" = "io.confluent.connect.hdfs.string.StringFormat"
-
-        # Конвертеры для чтения данных из Kafka
         "key.converter" = "org.apache.kafka.connect.storage.StringConverter"
         "key.converter.schemas.enable" = "false"
-        "value.converter" = "org.apache.kafka.connect.storage.StringConverter"  # Изменено на StringConverter
+        "value.converter" = "org.apache.kafka.connect.storage.StringConverter"
         "value.converter.schemas.enable" = "false"
 
-        "confluent.topic.bootstrap.servers" = "PLAINTEXT://kafka-0-destination:9092,PLAINTEXT://kafka-1-destination:9093,PLAINTEXT://kafka-2-destination:9094"
-        "schema.compatibility" = "NONE"
-        "errors.tolerance" = "all"
-        "errors.log.enable" = "true"
-        "errors.log.include.messages" = "true"
-        "hdfs.authentication.kerberos" = "false"
         "topics.dir" = "/data"
         "logs.dir" = "/logs"
         "flush.size" = "3"
         "rotate.interval.ms" = "30000"
-        "rotate.schedule.interval.ms" = "60000"
-        "timezone" = "Europe/Moscow"  # Обязательно при использовании rotate.schedule.interval.ms
+
+        "errors.tolerance" = "all"
+        "errors.log.enable" = "true"
+        "errors.log.include.messages" = "true"
+
+        "hdfs.authentication.kerberos" = "false"
+        "schema.compatibility" = "NONE"
+        "timezone" = "Europe/Moscow"
     }
 } | ConvertTo-Json -Depth 10
 
@@ -318,13 +213,13 @@ Invoke-RestMethod -Uri "http://localhost:18083/connectors/hdfs-sink-json-connect
 # права, если надо
 # docker exec hadoop-namenode hdfs dfs -chmod -R 777 /
 
-Создать коннектор FileStreamSink
-try {
-    $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
-    Write-Host "Старый коннектор удален"
-} catch {
-    Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
-}
+# Создать коннектор FileStreamSink
+# try {
+#     $response = Invoke-RestMethod -Uri "http://localhost:18083/connectors/file-sink-products-final" -Method Delete
+#     Write-Host "Старый коннектор удален"
+# } catch {
+#     Write-Host "Ошибка удаления коннектора (возможно его нет): $($_.Exception.Message)"
+# }
 
 
 $body = @{

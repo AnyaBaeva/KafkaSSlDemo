@@ -1,0 +1,20 @@
+
+h
+java:S11920"KDefine a constant instead of duplicating this literal "product_id" 3 times.(¢ÒéÀ8ÎÆ­º•3
+g
+java:S2095r"JUse try-with-resources or close this "KafkaStreams" in a "finally" clause.(êø”Ã8ÛÆ­º•3
+W
+java:S62132":Rename this variable to not match a restricted identifier.(äêí•8øÆ­º•3
+L	java:S1067"+Replace this use of System.err by a logger.(ˆˆŠúÿÿÿÿ8ùÆ­º•3
+L	java:S1069"+Replace this use of System.out by a logger.(˜¨…ûÿÿÿÿ8úÆ­º•3
+L	java:S106@"+Replace this use of System.out by a logger.(Ï“³­ÿÿÿÿÿ8úÆ­º•3
+G	java:S106C"+Replace this use of System.err by a logger.(“Æ¸±8úÆ­º•3
+L	java:S106S"+Replace this use of System.out by a logger.(Ì„ˆ¡ùÿÿÿÿ8–Ç­º•3
+G	java:S106V"+Replace this use of System.err by a logger.(°Ö‘ƒ8–Ç­º•3
+L	java:S106e"+Replace this use of System.out by a logger.(ÎåîÍşÿÿÿÿ8˜Ç­º•3
+L	java:S106h"+Replace this use of System.out by a logger.(ùıõıúÿÿÿÿ8˜Ç­º•3
+G	java:S106l"+Replace this use of System.err by a logger.(¶°ğé8˜Ç­º•3
+G	java:S106v"+Replace this use of System.out by a logger.(ƒÜ¿†8£Ç­º•3
+L	java:S106z"+Replace this use of System.out by a logger.(ÊÄñöÿÿÿÿÿ8£Ç­º•3
+F
+java:S1128")Remove this unused import 'java.io.File'.(†Ğ¥Å8¤Ç­º•3

@@ -23,9 +23,9 @@ public class KafkaHdfsSparkConsumer {
         Properties props = new Properties();
 //        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9093");
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
-                "kafka-0-destination:9092,kafka-1-destination:9093,kafka-2-destination:9094,localhost:49092,localhost:59092,localhost:59093"); //kafka-0-destination
+                "kafka-0-destination:9095,kafka-1-destination:9093,kafka-2-destination:9094,localhost:49092,localhost:59092,localhost:59093"); //kafka-0-destination
 //        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:49092"); //kafka-0-destination
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "hadoop-spark-consumer-group1");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "hadoop-spark-consumer-group5");
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");

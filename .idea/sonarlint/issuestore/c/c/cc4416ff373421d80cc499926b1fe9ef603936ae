@@ -1,0 +1,18 @@
+
+p
+java:S1192%"NDefine a constant instead of duplicating this literal "your-password" 3 times.(¦Ý¹¨ÿÿÿÿÿ8Ç‰Ùµ•3
+=
+java:S2189:""Add an end condition to this loop.(˜ïˆžÿÿÿÿÿ
+G
+java:S1602<",Remove useless curly braces around statement(å‡¹Œýÿÿÿÿ
+U
+java:S6213<":Rename this variable to not match a restricted identifier.(å‡¹Œýÿÿÿÿ
+@	java:S106="+Replace this use of System.out by a logger.(Œ°¿‚
+E	java:S106A"+Replace this use of System.err by a logger.(Ü÷þ´þÿÿÿÿ
+I
+java:S1128
+"-Remove this unused import 'org.slf4j.Logger'.(íØ®68ÌøÄ´•3
+Q
+java:S1128"4Remove this unused import 'org.slf4j.LoggerFactory'.(–ÿÚÞ8ÍøÄ´•3
+T
+java:S1128"2Remove this unused import 'java.util.Collections'.(¢³ïÓþÿÿÿÿ8ÍøÄ´•3

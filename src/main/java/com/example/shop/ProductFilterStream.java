@@ -25,7 +25,9 @@ public class ProductFilterStream {
 
     public static void main(String[] args) {
         // Сначала читаем и отправляем данные из файла в Kafka
-        sendJsonFileToKafka("products.json", "inputJsonStream");
+        for (int i = 0; i <= 100; i++) {
+            sendJsonFileToKafka("products.json", "inputJsonStream");
+        }
 
         // Затем запускаем Streams обработку
         startStreamsProcessing();

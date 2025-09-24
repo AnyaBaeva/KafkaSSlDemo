@@ -6,12 +6,12 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="apache_kafka_course-kafka_security" />
         <module name="project_6" />
+        <module name="KafkaShop" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="apache_kafka_course-kafka_security" target="17" />
+      <module name="KafkaShop" target="17" />
       <module name="project_5" target="17" />
       <module name="project_6" target="17" />
     </bytecodeTargetLevel>
