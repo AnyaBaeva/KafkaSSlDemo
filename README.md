@@ -54,11 +54,7 @@ dir %HADOOP_HOME%\bin\winutils.exe
 ```
 
 #SPARK 
-(ВРЕМЕННО ЗАКОММЕНТИРОВАН, НЕТ МЕСТА, КОНФИГУРАЦИЯ ВЕРНАЯ, НА КОД НЕДОСТАТОЧНО РАЗРЕШЕНИЙ)
-## HDFS - > Spark - > HDFS
-запустите класс HDFSProcessing
-## HDFS - > Kafka-destination
-запустите класс HDFSToKafka
+
 
 #SHOP API
 ## Добавление заблокированного товара
